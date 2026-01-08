@@ -423,9 +423,9 @@
                     </button>
                     <button
                         class="flex flex-col items-center p-3 bg-white rounded-xl shadow-soft hover:shadow-card transition"
-                        onclick="showTab('radar')">
-                        <span class="text-2xl mb-1">🚨</span>
-                        <span class="text-xs text-neutral-600">취소 레이더</span>
+                        onclick="showTab('aicare')">
+                        <span class="text-2xl mb-1">🤖</span>
+                        <span class="text-xs text-neutral-600">AI 케어</span>
                     </button>
                     <button
                         class="flex flex-col items-center p-3 bg-white rounded-xl shadow-soft hover:shadow-card transition"
@@ -1267,10 +1267,19 @@
 
                 <!-- 입력 영역 -->
                 <div class="border-t border-neutral-100 p-3 flex gap-2">
-                    <button
-                        class="w-10 h-10 bg-neutral-100 rounded-full flex items-center justify-center text-neutral-500 hover:bg-neutral-200 transition">
-                        📷
-                    </button>
+                    <label class="cursor-pointer">
+                        <input type="file" id="aiChatPhotoInput" accept="image/*" class="hidden"
+                            onchange="handleAIChatPhotoUpload(event)">
+                        <span
+                            class="w-10 h-10 bg-neutral-100 rounded-full flex items-center justify-center text-neutral-500 hover:bg-primary-100 hover:text-primary-500 transition">
+                            📷
+                        </span>
+                    </label>
+                    <div id="aiChatPhotoPreview" class="hidden relative">
+                        <img id="aiChatPreviewImg" src="" alt="첨부 사진" class="w-10 h-10 rounded-lg object-cover">
+                        <button onclick="removeAIChatPhoto()"
+                            class="absolute -top-1 -right-1 w-4 h-4 bg-red-500 text-white rounded-full text-xs">×</button>
+                    </div>
                     <input type="text" id="chatInput" placeholder="호프 AI에게 물어보세요..."
                         class="flex-1 px-4 py-2 bg-neutral-100 rounded-full outline-none focus:ring-2 focus:ring-primary-200 text-sm"
                         onkeypress="if(event.key==='Enter') sendChatMessage()">
@@ -2933,6 +2942,84 @@
         // 모달 닫기
         function closeMedicineModal() {
             document.getElementById('medicineModal')?.remove();
+        }
+
+        // ========================================
+        // AI 채팅 사진 업로드 기능
+        // ========================================
+        let aiChatAttachedPhoto = null;
+
+        function handleAIChatPhotoUpload(event) {
+            const file = event.target.files[0];
+            if (file) {
+                const reader = new FileReader();
+                reader.onload = function (e) {
+                    aiChatAttachedPhoto = e.target.result;
+                    document.getElementById('aiChatPreviewImg').src = e.target.result;
+                    document.getElementById('aiChatPhotoPreview').classList.remove('hidden');
+                };
+                reader.readAsDataURL(file);
+            }
+        }
+
+        function removeAIChatPhoto() {
+            aiChatAttachedPhoto = null;
+            document.getElementById('aiChatPhotoPreview').classList.add('hidden');
+            document.getElementById('aiChatPhotoInput').value = '';
+        }
+
+        function sendChatMessage() {
+            const input = document.getElementById('chatInput');
+            const message = input.value.trim();
+            const chatMessages = document.getElementById('chatMessages');
+
+            if (!message && !aiChatAttachedPhoto) return;
+
+            // 사용자 메시지 표시
+            let userMessageHtml = `
+                <div class="flex justify-end">
+                    <div class="bg-primary-100 rounded-2xl rounded-br-sm px-4 py-2 max-w-[80%]">
+            `;
+
+            if (aiChatAttachedPhoto) {
+                userMessageHtml += `<img src="${aiChatAttachedPhoto}" class="max-w-full rounded-lg mb-2" alt="첨부된 사진">`;
+            }
+
+            if (message) {
+                userMessageHtml += `<p class="text-sm">${message}</p>`;
+            }
+
+            userMessageHtml += `</div></div>`;
+            chatMessages.innerHTML += userMessageHtml;
+
+            input.value = '';
+            removeAIChatPhoto();
+            chatMessages.scrollTop = chatMessages.scrollHeight;
+
+            // AI 응답 (시뮬레이션)
+            setTimeout(() => {
+                chatMessages.innerHTML += `
+                    <div class="flex justify-start">
+                        <div class="bg-neutral-100 rounded-2xl rounded-bl-sm px-4 py-2 max-w-[80%]">
+                            <p class="text-sm">
+                                ${aiChatAttachedPhoto ? '📷 사진을 확인했어요! ' : ''}
+                                ${getAIResponse(message)}
+                            </p>
+                        </div>
+                    </div>
+                `;
+                chatMessages.scrollTop = chatMessages.scrollHeight;
+            }, 1000);
+        }
+
+        function getAIResponse(message) {
+            const responses = [
+                "네, 말씀하신 내용을 확인했어요. 더 자세히 알려주시면 도움을 드릴게요! 💜",
+                "궁금한 점이 있으시면 언제든 물어보세요. 희귀질환 관련 정보를 쉽게 설명해 드릴게요.",
+                "이 부분은 전문의 선생님과 상담하시는 것도 좋을 것 같아요. 필요하시면 질문 목록을 만들어 드릴까요?",
+                "관련 정보를 찾아봤어요. 더 알고 싶은 부분이 있으시면 말씀해주세요! 😊"
+            ];
+            return responses[Math.floor(Math.random() * responses.length)];
         }
 
         // 페이지 로드 시 상태 업데이트
