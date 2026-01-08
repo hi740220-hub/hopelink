@@ -1,0 +1,3244 @@
+<!DOCTYPE html>
+<html lang="ko">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>HopeLink - 희귀질환 환아 케어 플랫폼</title>
+    <meta name="description" content="희귀질환 환아 가족을 위한 종합 케어 앱. AI 관찰 일기, 케어 비서, 병원 매칭, 취소분 레이더 등 8개 모듈 제공.">
+
+    <!-- PWA 설정 -->
+    <link rel="manifest" href="./manifest.json">
+    <meta name="theme-color" content="#FFB5BA">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="default">
+    <meta name="apple-mobile-web-app-title" content="HopeLink">
+    <link rel="apple-touch-icon"
+        href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><circle cx='50' cy='50' r='45' fill='%23FFB5BA'/><text x='50' y='65' font-size='50' text-anchor='middle'>🎀</text></svg>">
+
+    <!-- Service Worker 등록 -->
+    <script>
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', () => {
+                navigator.serviceWorker.register('./sw.js')
+                    .then(reg => console.log('✅ Service Worker 등록 완료'))
+                    .catch(err => console.log('Service Worker 등록 실패:', err));
+            });
+        }
+    </script>
+
+
+    <!-- Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;600;700&display=swap"
+        rel="stylesheet">
+
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        primary: { DEFAULT: '#FFB5BA', 50: '#FFF5F6', 100: '#FFE8EA', 200: '#FFD4D8', 300: '#FFB5BA', 400: '#FF9AA1', 500: '#FF7A84' },
+                        secondary: { DEFAULT: '#E8D5E8', 50: '#FAF5FA', 100: '#F3E8F3', 200: '#E8D5E8', 300: '#D8BDD8' },
+                        accent: { DEFAULT: '#B8E8D4', 50: '#F0FBF7', 100: '#D9F5EB', 200: '#B8E8D4', 300: '#8DD9BC' },
+                        cream: { DEFAULT: '#FFF9F0', 50: '#FFFDFB', 100: '#FFF9F0' },
+                        warning: { DEFAULT: '#FFD93D', light: '#FFF3CD' },
+                        danger: { DEFAULT: '#FF6B6B', light: '#FFE5E5' },
+                        success: { DEFAULT: '#4CAF50', light: '#E8F5E9' },
+                    },
+                    fontFamily: { sans: ['Noto Sans KR', 'sans-serif'] },
+                    boxShadow: {
+                        'soft': '0 2px 8px rgba(255, 181, 186, 0.15)',
+                        'card': '0 4px 20px rgba(0, 0, 0, 0.05)',
+                        'floating': '0 10px 40px rgba(255, 122, 132, 0.3)',
+                    },
+                }
+            }
+        }
+    </script>
+
+    <style>
+        /* 커스텀 스타일 */
+        .tab-active {
+            color: #FF7A84;
+            border-bottom: 2px solid #FF7A84;
+        }
+
+        .floating-btn {
+            animation: float 3s ease-in-out infinite;
+        }
+
+        @keyframes float {
+
+            0%,
+            100% {
+                transform: translateY(0px);
+            }
+
+            50% {
+                transform: translateY(-10px);
+            }
+        }
+
+        .conflict-badge {
+            animation: pulse 2s infinite;
+        }
+
+        @keyframes pulse {
+
+            0%,
+            100% {
+                opacity: 1;
+            }
+
+            50% {
+                opacity: 0.6;
+            }
+        }
+
+        /* 모바일 최적화 */
+        .safe-area-bottom {
+            padding-bottom: env(safe-area-inset-bottom, 20px);
+        }
+    </style>
+</head>
+
+<body class="bg-cream font-sans text-neutral-800 min-h-screen">
+
+    <!-- ============================================= -->
+    <!-- 로그인 화면 (이메일 OTP 방식) -->
+    <!-- ============================================= -->
+    <div id="login-screen" class="max-w-md mx-auto bg-cream min-h-screen flex flex-col">
+
+        <!-- 로그인 헤더 -->
+        <div class="flex-1 flex flex-col justify-center items-center px-8 py-12">
+
+            <!-- 로고 -->
+            <div class="text-center mb-10">
+                <div
+                    class="w-24 h-24 bg-gradient-to-br from-primary-300 to-primary-500 rounded-full flex items-center justify-center mx-auto mb-4 shadow-floating">
+                    <span class="text-5xl">🎀</span>
+                </div>
+                <h1 class="text-3xl font-bold text-primary-500">HopeLink</h1>
+                <p class="text-neutral-500 mt-2">우리 아이와 함께하는 희망의 연결</p>
+            </div>
+
+            <!-- 로그인 폼 -->
+            <div class="w-full bg-white rounded-3xl p-6 shadow-card border border-primary-100">
+
+                <!-- 1단계: 이메일 입력 -->
+                <div id="step-email" class="space-y-4">
+                    <h2 class="text-lg font-semibold text-center text-neutral-700">이메일로 로그인</h2>
+                    <p class="text-sm text-neutral-500 text-center">이메일을 입력하면 인증 코드를 보내드려요</p>
+
+                    <div class="relative">
+                        <input type="email" id="login-email" placeholder="이메일 주소 입력"
+                            class="w-full px-4 py-4 border-2 border-primary-200 rounded-xl focus:border-primary-400 focus:outline-none text-lg transition"
+                            oninput="validateEmail()">
+                        <span class="absolute right-4 top-1/2 -translate-y-1/2 text-xl">📧</span>
+                    </div>
+
+                    <button id="send-code-btn" onclick="sendVerificationCode()" disabled
+                        class="w-full py-4 bg-primary-300 text-white rounded-xl font-semibold text-lg disabled:bg-neutral-200 disabled:text-neutral-400 transition hover:bg-primary-400">
+                        인증 코드 받기
+                    </button>
+
+                    <p id="email-error" class="text-danger text-sm text-center hidden"></p>
+                </div>
+
+                <!-- 2단계: 코드 입력 -->
+                <div id="step-code" class="space-y-4 hidden">
+                    <button onclick="backToEmail()" class="text-neutral-500 text-sm flex items-center gap-1">
+                        ← 이메일 다시 입력
+                    </button>
+
+                    <h2 class="text-lg font-semibold text-center text-neutral-700">인증 코드 입력</h2>
+                    <p id="code-sent-msg" class="text-sm text-neutral-500 text-center"></p>
+
+                    <div class="flex gap-2 justify-center">
+                        <input type="text" id="code-1" maxlength="1"
+                            class="w-12 h-14 text-center text-2xl font-bold border-2 border-primary-200 rounded-xl focus:border-primary-400 focus:outline-none"
+                            oninput="moveToNext(this, 'code-2')">
+                        <input type="text" id="code-2" maxlength="1"
+                            class="w-12 h-14 text-center text-2xl font-bold border-2 border-primary-200 rounded-xl focus:border-primary-400 focus:outline-none"
+                            oninput="moveToNext(this, 'code-3')">
+                        <input type="text" id="code-3" maxlength="1"
+                            class="w-12 h-14 text-center text-2xl font-bold border-2 border-primary-200 rounded-xl focus:border-primary-400 focus:outline-none"
+                            oninput="moveToNext(this, 'code-4')">
+                        <input type="text" id="code-4" maxlength="1"
+                            class="w-12 h-14 text-center text-2xl font-bold border-2 border-primary-200 rounded-xl focus:border-primary-400 focus:outline-none"
+                            oninput="moveToNext(this, 'code-5')">
+                        <input type="text" id="code-5" maxlength="1"
+                            class="w-12 h-14 text-center text-2xl font-bold border-2 border-primary-200 rounded-xl focus:border-primary-400 focus:outline-none"
+                            oninput="moveToNext(this, 'code-6')">
+                        <input type="text" id="code-6" maxlength="1"
+                            class="w-12 h-14 text-center text-2xl font-bold border-2 border-primary-200 rounded-xl focus:border-primary-400 focus:outline-none"
+                            oninput="verifyCodeAuto()">
+                    </div>
+
+                    <button id="verify-btn" onclick="verifyCode()"
+                        class="w-full py-4 bg-primary-300 text-white rounded-xl font-semibold text-lg transition hover:bg-primary-400">
+                        확인
+                    </button>
+
+                    <p class="text-center text-sm text-neutral-400">
+                        코드를 못 받으셨나요? <button onclick="sendVerificationCode()" class="text-primary-500 font-medium">다시
+                            받기</button>
+                    </p>
+
+                    <p id="code-error" class="text-danger text-sm text-center hidden"></p>
+                </div>
+
+                <!-- 3단계: 프로필 설정 (신규 사용자) -->
+                <div id="step-profile" class="space-y-4 hidden">
+                    <h2 class="text-lg font-semibold text-center text-neutral-700">프로필 설정</h2>
+                    <p class="text-sm text-neutral-500 text-center">처음 오셨네요! 이름을 알려주세요 😊</p>
+
+                    <div class="relative">
+                        <input type="text" id="profile-name" placeholder="이름 입력"
+                            class="w-full px-4 py-4 border-2 border-primary-200 rounded-xl focus:border-primary-400 focus:outline-none text-lg transition">
+                        <span class="absolute right-4 top-1/2 -translate-y-1/2 text-xl">👤</span>
+                    </div>
+
+                    <button onclick="setupProfile()"
+                        class="w-full py-4 bg-accent text-neutral-800 rounded-xl font-semibold text-lg transition hover:bg-accent-300">
+                        시작하기 🚀
+                    </button>
+                </div>
+
+            </div>
+
+            <!-- 테스트 힌트 -->
+            <div class="mt-6 p-4 bg-accent-50 rounded-xl border border-accent-200">
+                <p class="text-sm text-neutral-600 text-center">
+                    💡 <span class="font-medium">테스트 모드</span>: 아무 이메일이나 입력하세요!<br>
+                    인증 코드는 화면에 자동으로 표시됩니다.
+                </p>
+            </div>
+        </div>
+    </div>
+
+    <!-- 메인 컨테이너 (로그인 후 표시) -->
+    <div id="app" class="max-w-md mx-auto bg-cream min-h-screen relative pb-20 hidden">
+
+        <!-- ============================================= -->
+        <!-- 헤더 -->
+        <!-- ============================================= -->
+        <header class="sticky top-0 z-40 bg-cream/95 backdrop-blur-sm px-5 py-3">
+            <div class="flex items-center justify-between">
+                <!-- 왼쪽: 뒤로가기/홈 버튼 + 타이틀 -->
+                <div class="flex items-center gap-3">
+                    <!-- 뒤로가기 버튼 (홈이 아닐 때만 표시) -->
+                    <button id="backBtn" onclick="goBack()"
+                        class="hidden w-10 h-10 flex items-center justify-center rounded-full bg-white shadow-sm hover:bg-neutral-50 transition">
+                        <span class="text-xl">←</span>
+                    </button>
+                    <!-- 로고/타이틀 -->
+                    <div id="headerTitle">
+                        <h1 class="text-xl font-bold text-primary-500">
+                            <span class="text-2xl">🎀</span> HopeLink
+                        </h1>
+                        <p class="text-xs text-neutral-500 mt-0.5">우리 아이와 함께하는 희망의 연결</p>
+                    </div>
+                    <!-- 서브페이지 타이틀 (홈이 아닐 때 표시) -->
+                    <div id="subpageTitle" class="hidden">
+                        <p class="text-xs text-neutral-400">HopeLink</p>
+                        <h1 id="currentTabName" class="text-lg font-bold text-neutral-800"></h1>
+                    </div>
+                </div>
+
+                <!-- 오른쪽: 홈 버튼 + 알림 + 프로필 -->
+                <div class="flex items-center gap-2">
+                    <!-- 홈으로 가기 버튼 (홈이 아닐 때만 표시) -->
+                    <button id="homeBtn" onclick="showTab('home')"
+                        class="hidden w-10 h-10 flex items-center justify-center rounded-full bg-primary-50 hover:bg-primary-100 transition">
+                        <span class="text-xl">🏠</span>
+                    </button>
+                    <button class="relative p-2 rounded-full hover:bg-primary-50 transition">
+                        <span class="text-xl">🔔</span>
+                        <span class="absolute top-1 right-1 w-2 h-2 bg-danger rounded-full"></span>
+                    </button>
+                    <img src="https://api.dicebear.com/7.x/avataaars/svg?seed=parent" alt="프로필"
+                        class="w-10 h-10 rounded-full border-2 border-primary">
+                </div>
+            </div>
+        </header>
+
+        <!-- ============================================= -->
+        <!-- 홈 탭 컨텐츠 -->
+        <!-- ============================================= -->
+        <main id="home-tab" class="px-5 py-4 space-y-6">
+
+            <!-- 아이 정보 입력 섹션 -->
+            <section class="bg-white rounded-2xl p-5 shadow-card border border-primary-200">
+                <div class="flex items-center gap-2 mb-4">
+                    <span class="text-2xl">👶</span>
+                    <h3 class="font-semibold">우리 아이 정보</h3>
+                    <span class="ml-auto text-xs bg-primary-50 text-primary-500 px-2 py-1 rounded-full">필수 입력</span>
+                </div>
+                <div class="space-y-4">
+                    <!-- 아이 이름 -->
+                    <div>
+                        <label class="block text-sm font-medium text-neutral-600 mb-1">아이 이름</label>
+                        <input type="text" id="childName" placeholder="예: 민준이"
+                            class="w-full px-4 py-3 bg-cream rounded-xl border border-neutral-200 focus:border-primary focus:ring-2 focus:ring-primary-100 outline-none transition">
+                    </div>
+                    <!-- 생년월일 -->
+                    <div>
+                        <label class="block text-sm font-medium text-neutral-600 mb-1">생년월일</label>
+                        <input type="date" id="birthDate"
+                            class="w-full px-4 py-3 bg-cream rounded-xl border border-neutral-200 focus:border-primary focus:ring-2 focus:ring-primary-100 outline-none transition">
+                        <p id="ageDisplay" class="text-xs text-neutral-500 mt-1"></p>
+                    </div>
+                    <!-- 진단명 -->
+                    <div>
+                        <label class="block text-sm font-medium text-neutral-600 mb-1">진단명 (질환명)</label>
+                        <input type="text" id="diagnosis" placeholder="예: 영아연축, 웨스트증후군"
+                            class="w-full px-4 py-3 bg-cream rounded-xl border border-neutral-200 focus:border-primary focus:ring-2 focus:ring-primary-100 outline-none transition">
+                        <p class="text-xs text-neutral-400 mt-1">ICD-10 질병 코드가 있다면 함께 입력해주세요</p>
+                    </div>
+                    <!-- 거주 지역 -->
+                    <div>
+                        <label class="block text-sm font-medium text-neutral-600 mb-1">거주 지역</label>
+                        <input type="text" id="residence" list="residence-list" placeholder="예: 서울시 강남구"
+                            class="w-full px-4 py-3 bg-cream rounded-xl border border-neutral-200 focus:border-primary focus:ring-2 focus:ring-primary-100 outline-none transition">
+                        <datalist id="residence-list">
+                            <option value="서울특별시">
+                            <option value="경기도">
+                            <option value="인천광역시">
+                            <option value="부산광역시">
+                            <option value="대구광역시">
+                            <option value="대전광역시">
+                            <option value="광주광역시">
+                            <option value="울산광역시">
+                            <option value="세종특별자치시">
+                            <option value="강원도">
+                            <option value="충청북도">
+                            <option value="충청남도">
+                            <option value="전라북도">
+                            <option value="전라남도">
+                            <option value="경상북도">
+                            <option value="경상남도">
+                            <option value="제주특별자치도">
+                        </datalist>
+                        <p class="text-xs text-neutral-400 mt-1">상세 주소까지 입력하시면 맞춤 병원 추천이 가능해요</p>
+                    </div>
+                    <button onclick="saveChildInfo()"
+                        class="w-full py-3 bg-primary text-white rounded-xl font-medium hover:bg-primary-400 transition">
+                        정보 저장하기
+                    </button>
+                </div>
+            </section>
+
+            <!-- 아이의 오늘 섹션 -->
+            <section class="bg-gradient-to-br from-primary-100 via-white to-secondary-100 rounded-3xl p-5 shadow-card">
+                <div class="flex items-center gap-4">
+                    <div class="w-16 h-16 rounded-2xl bg-white shadow-soft flex items-center justify-center">
+                        <span class="text-3xl">👶</span>
+                    </div>
+                    <div class="flex-1">
+                        <h2 class="font-semibold text-lg" id="childNameDisplay">다희의 오늘</h2>
+                        <!-- 컨디션 클릭 가능 -->
+                        <button onclick="changeCondition()"
+                            class="text-sm text-neutral-600 mt-1 hover:bg-white/50 px-2 py-1 rounded-lg transition"
+                            id="conditionBtn">
+                            <span class="inline-flex items-center gap-1" id="conditionDisplay">
+                                <span id="conditionEmoji">💚</span> 오늘 컨디션 <span id="conditionText">좋음</span>
+                            </span>
+                            <span class="text-xs text-primary-400 ml-1">탭하여 변경</span>
+                        </button>
+                    </div>
+                    <button onclick="showTab('diary')"
+                        class="text-primary-500 text-sm font-medium hover:text-primary-600 hover:bg-primary-50 px-3 py-2 rounded-lg transition">
+                        기록하기 →
+                    </button>
+                </div>
+
+                <!-- 오늘의 상태 요약 - 클릭 가능 -->
+                <div class="grid grid-cols-3 gap-3 mt-4">
+                    <button onclick="openMedicineTracker()"
+                        class="bg-white/60 backdrop-blur rounded-xl p-3 text-center hover:bg-white hover:shadow-lg transition cursor-pointer">
+                        <span class="text-2xl">💊</span>
+                        <p class="text-xs text-neutral-500 mt-1">약 복용</p>
+                        <p class="text-sm font-semibold text-success" id="medicineStatus">2/2</p>
+                    </button>
+                    <button onclick="showTab('diary')"
+                        class="bg-white/60 backdrop-blur rounded-xl p-3 text-center hover:bg-white hover:shadow-lg transition cursor-pointer">
+                        <span class="text-2xl">📹</span>
+                        <p class="text-xs text-neutral-500 mt-1">관찰 일기</p>
+                        <p class="text-sm font-semibold text-primary-500" id="diaryCount">1건</p>
+                    </button>
+                    <button onclick="showNextAppointment()"
+                        class="bg-white/60 backdrop-blur rounded-xl p-3 text-center hover:bg-white hover:shadow-lg transition cursor-pointer">
+                        <span class="text-2xl">🏥</span>
+                        <p class="text-xs text-neutral-500 mt-1">다음 진료</p>
+                        <p class="text-sm font-semibold text-neutral-700" id="nextAppointment">D-3</p>
+                    </button>
+                </div>
+            </section>
+
+            <!-- 오늘의 미션 카드 -->
+            <section
+                class="bg-white rounded-2xl p-5 shadow-card border border-accent/30 cursor-pointer hover:shadow-lg transition"
+                onclick="showMissionDetail()">
+                <div class="flex items-center gap-3 mb-4">
+                    <span class="text-2xl">🎯</span>
+                    <h3 class="font-semibold">오늘의 미션</h3>
+                    <span class="ml-auto text-xs bg-accent/30 text-accent-500 px-2 py-1 rounded-full">발달 놀이</span>
+                </div>
+                <div class="bg-accent-50 rounded-xl p-4">
+                    <h4 class="font-medium text-accent-500 mb-2">🧩 대기 기간 발달 놀이</h4>
+                    <p class="text-sm text-neutral-600 leading-relaxed">
+                        진료 대기 중에도 아이와 함께할 수 있는 간단한 감각 놀이를 해보세요.
+                        오늘은 <strong>시각 추적 놀이</strong>를 추천드려요!
+                    </p>
+                    <button onclick="event.stopPropagation(); showMissionDetail()"
+                        class="mt-3 w-full py-2.5 bg-accent text-white rounded-xl font-medium hover:bg-accent-300 transition">
+                        놀이 방법 보기
+                    </button>
+                </div>
+            </section>
+
+            <!-- 빠른 메뉴 -->
+            <section>
+                <h3 class="font-semibold mb-3">빠른 메뉴</h3>
+                <div class="grid grid-cols-4 gap-3">
+                    <button
+                        class="flex flex-col items-center p-3 bg-white rounded-xl shadow-soft hover:shadow-card transition"
+                        onclick="showTab('diary')">
+                        <span class="text-2xl mb-1">📒</span>
+                        <span class="text-xs text-neutral-600">관찰 일기</span>
+                    </button>
+                    <button
+                        class="flex flex-col items-center p-3 bg-white rounded-xl shadow-soft hover:shadow-card transition"
+                        onclick="showTab('plan')">
+                        <span class="text-2xl mb-1">🗓️</span>
+                        <span class="text-xs text-neutral-600">케어 플랜</span>
+                    </button>
+                    <button
+                        class="flex flex-col items-center p-3 bg-white rounded-xl shadow-soft hover:shadow-card transition"
+                        onclick="showTab('radar')">
+                        <span class="text-2xl mb-1">🚨</span>
+                        <span class="text-xs text-neutral-600">취소 레이더</span>
+                    </button>
+                    <button
+                        class="flex flex-col items-center p-3 bg-white rounded-xl shadow-soft hover:shadow-card transition"
+                        onclick="showTab('research')">
+                        <span class="text-2xl mb-1">🔬</span>
+                        <span class="text-xs text-neutral-600">연구 소식</span>
+                    </button>
+                </div>
+            </section>
+
+            <!-- 케어 비서 미리보기 -->
+            <section class="bg-gradient-to-r from-secondary-100 to-primary-100 rounded-2xl p-5">
+                <div class="flex items-start gap-3">
+                    <span class="text-3xl">💬</span>
+                    <div class="flex-1">
+                        <h3 class="font-semibold">지능형 케어 비서</h3>
+                        <p class="text-sm text-neutral-600 mt-1">
+                            의료 문서 해석, 복지 혜택 안내 등 24시간 상담 가능해요
+                        </p>
+                        <button onclick="showTab('aicare')"
+                            class="mt-3 px-4 py-2 bg-white text-secondary-400 rounded-xl text-sm font-medium shadow-soft hover:shadow-card transition">
+                            대화 시작하기
+                        </button>
+                    </div>
+                </div>
+            </section>
+
+        </main>
+
+        <!-- ============================================= -->
+        <!-- 일기 탭 컨텐츠 -->
+        <!-- ============================================= -->
+        <main id="diary-tab" class="px-5 py-4 space-y-4 hidden">
+            <div class="flex items-center justify-between mb-2">
+                <h2 class="text-lg font-bold">📒 관찰 일기</h2>
+                <span class="text-sm text-neutral-500">2026년 1월</span>
+            </div>
+
+            <!-- 새 일기 작성 섹션 -->
+            <section class="bg-white rounded-2xl p-5 shadow-card border-2 border-primary-200">
+                <div class="flex items-center gap-2 mb-4">
+                    <span class="text-2xl">✍️</span>
+                    <h3 class="font-semibold">새 일기 작성</h3>
+                </div>
+
+                <!-- 사진/영상 업로드 -->
+                <div class="mb-4">
+                    <label class="block text-sm font-medium text-neutral-600 mb-2">📷 사진 / 영상 첨부</label>
+                    <div id="mediaPreviewContainer" class="grid grid-cols-3 gap-2 mb-2"></div>
+                    <div class="flex gap-2">
+                        <label
+                            class="flex-1 flex items-center justify-center gap-2 px-4 py-3 bg-primary-50 text-primary-500 rounded-xl cursor-pointer hover:bg-primary-100 transition">
+                            <span>📷</span>
+                            <span class="text-sm font-medium">사진 추가</span>
+                            <input type="file" id="photoInput" accept="image/*" multiple class="hidden"
+                                onchange="handleMediaUpload(event, 'photo')">
+                        </label>
+                        <label
+                            class="flex-1 flex items-center justify-center gap-2 px-4 py-3 bg-accent-50 text-accent-400 rounded-xl cursor-pointer hover:bg-accent-100 transition">
+                            <span>🎥</span>
+                            <span class="text-sm font-medium">영상 추가</span>
+                            <input type="file" id="videoInput" accept="video/*" class="hidden"
+                                onchange="handleMediaUpload(event, 'video')">
+                        </label>
+                    </div>
+                </div>
+
+                <!-- 날짜/시간 -->
+                <div class="grid grid-cols-2 gap-3 mb-4">
+                    <div>
+                        <label class="block text-sm font-medium text-neutral-600 mb-1">📅 날짜</label>
+                        <input type="date" id="diaryDate"
+                            class="w-full px-3 py-2 bg-cream rounded-xl border border-neutral-200 focus:border-primary outline-none text-sm">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-neutral-600 mb-1">⏰ 시간</label>
+                        <input type="time" id="diaryTime"
+                            class="w-full px-3 py-2 bg-cream rounded-xl border border-neutral-200 focus:border-primary outline-none text-sm">
+                    </div>
+                </div>
+
+                <!-- 증상 태그 선택 -->
+                <div class="mb-4">
+                    <label class="block text-sm font-medium text-neutral-600 mb-2">🏷️ 증상 태그</label>
+                    <div class="flex flex-wrap gap-2">
+                        <button type="button" onclick="toggleTag(this)"
+                            class="symptom-tag px-3 py-1.5 text-xs rounded-full border border-neutral-200 hover:border-primary-300 transition">연축</button>
+                        <button type="button" onclick="toggleTag(this)"
+                            class="symptom-tag px-3 py-1.5 text-xs rounded-full border border-neutral-200 hover:border-primary-300 transition">경련</button>
+                        <button type="button" onclick="toggleTag(this)"
+                            class="symptom-tag px-3 py-1.5 text-xs rounded-full border border-neutral-200 hover:border-primary-300 transition">발작</button>
+                        <button type="button" onclick="toggleTag(this)"
+                            class="symptom-tag px-3 py-1.5 text-xs rounded-full border border-neutral-200 hover:border-primary-300 transition">무호흡</button>
+                        <button type="button" onclick="toggleTag(this)"
+                            class="symptom-tag px-3 py-1.5 text-xs rounded-full border border-neutral-200 hover:border-primary-300 transition">수면
+                            이상</button>
+                        <button type="button" onclick="toggleTag(this)"
+                            class="symptom-tag px-3 py-1.5 text-xs rounded-full border border-neutral-200 hover:border-primary-300 transition">식이
+                            거부</button>
+                    </div>
+                </div>
+
+                <!-- 일기 내용 -->
+                <div class="mb-4">
+                    <label class="block text-sm font-medium text-neutral-600 mb-1">📝 관찰 내용</label>
+                    <textarea id="diaryContent" rows="4"
+                        placeholder="아이의 상태와 증상을 자세히 기록해주세요.&#10;예) 오전 9시경 연축 2회 발생, 각 5초간 지속. 이후 10분간 울음..."
+                        class="w-full px-4 py-3 bg-cream rounded-xl border border-neutral-200 focus:border-primary focus:ring-2 focus:ring-primary-100 outline-none transition resize-none text-sm"></textarea>
+                </div>
+
+                <!-- 컨디션 선택 -->
+                <div class="mb-4">
+                    <label class="block text-sm font-medium text-neutral-600 mb-2">😊 오늘 컨디션</label>
+                    <div class="flex justify-around">
+                        <button type="button" onclick="selectCondition(this, 'great')"
+                            class="condition-btn flex flex-col items-center p-2 rounded-xl hover:bg-success-light transition">
+                            <span class="text-2xl">😄</span>
+                            <span class="text-xs text-neutral-500 mt-1">아주 좋음</span>
+                        </button>
+                        <button type="button" onclick="selectCondition(this, 'good')"
+                            class="condition-btn flex flex-col items-center p-2 rounded-xl hover:bg-accent-50 transition">
+                            <span class="text-2xl">🙂</span>
+                            <span class="text-xs text-neutral-500 mt-1">좋음</span>
+                        </button>
+                        <button type="button" onclick="selectCondition(this, 'normal')"
+                            class="condition-btn flex flex-col items-center p-2 rounded-xl hover:bg-neutral-100 transition">
+                            <span class="text-2xl">😐</span>
+                            <span class="text-xs text-neutral-500 mt-1">보통</span>
+                        </button>
+                        <button type="button" onclick="selectCondition(this, 'bad')"
+                            class="condition-btn flex flex-col items-center p-2 rounded-xl hover:bg-warning-light transition">
+                            <span class="text-2xl">😟</span>
+                            <span class="text-xs text-neutral-500 mt-1">나쁨</span>
+                        </button>
+                        <button type="button" onclick="selectCondition(this, 'critical')"
+                            class="condition-btn flex flex-col items-center p-2 rounded-xl hover:bg-danger-light transition">
+                            <span class="text-2xl">😢</span>
+                            <span class="text-xs text-neutral-500 mt-1">매우 나쁨</span>
+                        </button>
+                    </div>
+                </div>
+
+                <button onclick="saveDiary()"
+                    class="w-full py-3 bg-primary text-white rounded-xl font-medium hover:bg-primary-400 transition flex items-center justify-center gap-2">
+                    <span>💾</span> 일기 저장하기
+                </button>
+            </section>
+
+            <!-- 최근 기록 (접을 수 있는 섹션) -->
+            <section class="bg-white rounded-2xl shadow-card overflow-hidden">
+                <button onclick="toggleSection('recentDiaries')"
+                    class="w-full flex items-center justify-between p-4 hover:bg-neutral-50 transition">
+                    <div class="flex items-center gap-2">
+                        <span class="text-xl">📚</span>
+                        <span class="font-semibold">최근 기록</span>
+                        <span class="text-xs bg-primary-50 text-primary-500 px-2 py-0.5 rounded-full">3건</span>
+                    </div>
+                    <span id="recentDiaries-arrow" class="text-neutral-400 transition-transform">▼</span>
+                </button>
+                <div id="recentDiaries-content" class="px-4 pb-4 space-y-3">
+                    <div class="bg-neutral-50 rounded-xl p-3 flex items-center gap-3">
+                        <div
+                            class="w-14 h-14 bg-primary-100 rounded-lg flex items-center justify-center overflow-hidden">
+                            <span class="text-xl">🎥</span>
+                        </div>
+                        <div class="flex-1">
+                            <p class="font-medium text-sm">1월 6일 오전 기록</p>
+                            <p class="text-xs text-neutral-500 mt-0.5">연축 2회 감지 • 3분 12초</p>
+                            <span class="text-xs bg-primary-50 text-primary-500 px-2 py-0.5 rounded-full">AI 분석
+                                완료</span>
+                        </div>
+                        <button class="text-neutral-400 hover:text-neutral-600 text-lg">▶</button>
+                    </div>
+                    <div class="bg-neutral-50 rounded-xl p-3 flex items-center gap-3">
+                        <div class="w-14 h-14 bg-accent-100 rounded-lg flex items-center justify-center">
+                            <span class="text-xl">🎥</span>
+                        </div>
+                        <div class="flex-1">
+                            <p class="font-medium text-sm">1월 5일 저녁 기록</p>
+                            <p class="text-xs text-neutral-500 mt-0.5">연축 5회 감지 • 5분 48초</p>
+                            <span class="text-xs bg-warning-light text-warning-dark px-2 py-0.5 rounded-full">주의
+                                필요</span>
+                        </div>
+                        <button class="text-neutral-400 hover:text-neutral-600 text-lg">▶</button>
+                    </div>
+                    <div class="bg-neutral-50 rounded-xl p-3 flex items-center gap-3">
+                        <div class="w-14 h-14 bg-secondary-100 rounded-lg flex items-center justify-center">
+                            <span class="text-xl">📝</span>
+                        </div>
+                        <div class="flex-1">
+                            <p class="font-medium text-sm">1월 5일 오전 메모</p>
+                            <p class="text-xs text-neutral-500 mt-0.5">약 복용 후 안정적...</p>
+                        </div>
+                        <button class="text-neutral-400 hover:text-neutral-600 text-lg">→</button>
+                    </div>
+                </div>
+            </section>
+
+            <!-- AI 인사이트 (접을 수 있는 섹션) -->
+            <section class="bg-gradient-to-br from-secondary-50 to-accent-50 rounded-2xl overflow-hidden">
+                <button onclick="toggleSection('aiInsight')"
+                    class="w-full flex items-center justify-between p-4 hover:opacity-90 transition">
+                    <div class="flex items-center gap-2">
+                        <span class="text-xl">🤖</span>
+                        <span class="font-semibold">AI 분석 인사이트</span>
+                    </div>
+                    <span id="aiInsight-arrow" class="text-neutral-400 transition-transform">▼</span>
+                </button>
+                <div id="aiInsight-content" class="px-4 pb-4">
+                    <p class="text-sm text-neutral-600 leading-relaxed">
+                        최근 7일간 연축 발생이 <strong class="text-danger">15% 증가</strong>했습니다.
+                        특히 <strong>저녁 7~9시</strong> 사이 집중되는 패턴이 관찰됩니다.
+                        다음 진료 시 담당의에게 공유하시길 권장드립니다.
+                    </p>
+                </div>
+            </section>
+        </main>
+
+        <!-- ============================================= -->
+        <!-- 플랜 탭 컨텐츠 -->
+        <!-- ============================================= -->
+        <main id="plan-tab" class="px-5 py-4 space-y-4 hidden">
+            <div class="flex items-center justify-between mb-2">
+                <h2 class="text-lg font-bold">🗓️ 케어 플랜</h2>
+                <div class="flex items-center gap-2">
+                    <span class="flex items-center gap-1 text-xs text-success bg-success-light px-2 py-1 rounded-full">
+                        <span>✓</span> 구글 캘린더 연동
+                    </span>
+                </div>
+            </div>
+
+            <!-- 미니 캘린더 뷰 -->
+            <section class="bg-white rounded-2xl shadow-card p-4 mb-4">
+                <div class="flex items-center justify-between mb-3">
+                    <button onclick="changeMonth(-1)"
+                        class="w-8 h-8 flex items-center justify-center rounded-full hover:bg-neutral-100">←</button>
+                    <h3 class="font-bold" id="calendarMonth">2026년 1월</h3>
+                    <button onclick="changeMonth(1)"
+                        class="w-8 h-8 flex items-center justify-center rounded-full hover:bg-neutral-100">→</button>
+                </div>
+                <!-- 요일 헤더 -->
+                <div class="grid grid-cols-7 gap-1 text-center text-xs text-neutral-500 mb-2">
+                    <span>일</span><span>월</span><span>화</span><span>수</span><span>목</span><span>금</span><span>토</span>
+                </div>
+                <!-- 날짜 그리드 -->
+                <div id="calendarGrid" class="grid grid-cols-7 gap-1 text-center text-sm">
+                    <!-- JS로 동적 생성 -->
+                </div>
+                <!-- 범례 -->
+                <div class="flex items-center justify-center gap-4 mt-3 text-xs text-neutral-500">
+                    <span class="flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-primary"></span>
+                        진료</span>
+                    <span class="flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-accent"></span> 재활</span>
+                    <span class="flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-warning"></span>
+                        충돌</span>
+                </div>
+            </section>
+
+            <!-- 일정 추가 버튼 -->
+            <button onclick="addNewSchedule()"
+                class="w-full py-3 bg-gradient-to-r from-primary-400 to-accent-400 text-white rounded-2xl font-medium shadow-card flex items-center justify-center gap-2 mb-4 hover:opacity-90 transition">
+                <span>➕</span> 새 일정 추가하기
+            </button>
+
+            <!-- 일정 리스트 -->
+            <div class="space-y-3">
+                <!-- 충돌 있는 일정 -->
+                <div class="bg-white rounded-2xl p-4 shadow-card border-l-4 border-warning">
+                    <div class="flex items-start justify-between">
+                        <div class="flex-1">
+                            <div class="flex items-center gap-2">
+                                <span class="text-lg">🏥</span>
+                                <span class="font-medium">서울대병원 신경과</span>
+                            </div>
+                            <p class="text-sm text-neutral-500 mt-1">1월 10일 (금) 14:00 - 15:30</p>
+                            <p class="text-xs text-neutral-400 mt-1">김OO 교수 • 소아신경과</p>
+                        </div>
+                        <div class="flex flex-col items-end gap-2">
+                            <span
+                                class="conflict-badge flex items-center gap-1 text-xs bg-warning-light text-warning-dark px-2 py-1 rounded-lg">
+                                <span>⚠️</span> 일정 충돌
+                            </span>
+                            <button onclick="addToCalendar('서울대병원 신경과', '2026-01-10T14:00', '2026-01-10T15:30')"
+                                class="text-xs bg-primary-50 text-primary-500 px-2 py-1 rounded-lg hover:bg-primary-100">
+                                📅 캘린더 추가
+                            </button>
+                        </div>
+                    </div>
+                    <div class="mt-3 p-3 bg-warning-light/50 rounded-xl">
+                        <p class="text-xs text-warning-dark">
+                            ⚠️ '재활치료'와 30분 겹칩니다. 일정 조정을 권장드립니다.
+                        </p>
+                    </div>
+                </div>
+
+                <!-- 재활치료 -->
+                <div class="bg-white rounded-2xl p-4 shadow-card border-l-4 border-accent">
+                    <div class="flex items-start justify-between">
+                        <div>
+                            <div class="flex items-center gap-2">
+                                <span class="text-lg">🦾</span>
+                                <span class="font-medium">재활치료</span>
+                            </div>
+                            <p class="text-sm text-neutral-500 mt-1">1월 10일 (금) 15:00 - 16:00</p>
+                            <p class="text-xs text-neutral-400 mt-1">어린이재활센터</p>
+                        </div>
+                        <button onclick="addToCalendar('재활치료 - 어린이재활센터', '2026-01-10T15:00', '2026-01-10T16:00')"
+                            class="text-xs bg-accent-50 text-accent-400 px-2 py-1 rounded-lg hover:bg-accent-100">
+                            📅 캘린더 추가
+                        </button>
+                    </div>
+                </div>
+
+                <!-- 언어치료 -->
+                <div class="bg-white rounded-2xl p-4 shadow-card border-l-4 border-secondary">
+                    <div class="flex items-start justify-between">
+                        <div>
+                            <div class="flex items-center gap-2">
+                                <span class="text-lg">💬</span>
+                                <span class="font-medium">언어치료</span>
+                            </div>
+                            <p class="text-sm text-neutral-500 mt-1">1월 10일 (금) 17:00 - 18:00</p>
+                            <p class="text-xs text-neutral-400 mt-1">○○언어치료실</p>
+                        </div>
+                        <button onclick="addToCalendar('언어치료', '2026-01-10T17:00', '2026-01-10T18:00')"
+                            class="text-xs bg-secondary-50 text-secondary-400 px-2 py-1 rounded-lg hover:bg-secondary-100">
+                            📅 캘린더 추가
+                        </button>
+                    </div>
+                </div>
+
+                <!-- 약 복용 리마인더 -->
+                <div class="bg-white rounded-2xl p-4 shadow-card border-l-4 border-primary">
+                    <div class="flex items-start justify-between">
+                        <div>
+                            <div class="flex items-center gap-2">
+                                <span class="text-lg">💊</span>
+                                <span class="font-medium">비가바트린 복용</span>
+                            </div>
+                            <p class="text-sm text-neutral-500 mt-1">매일 아침 8:00, 저녁 8:00</p>
+                            <p class="text-xs text-neutral-400 mt-1">500mg × 2회</p>
+                        </div>
+                        <button onclick="addToCalendar('비가바트린 복용 리마인더', '2026-01-07T08:00', '2026-01-07T08:30')"
+                            class="text-xs bg-primary-50 text-primary-500 px-2 py-1 rounded-lg hover:bg-primary-100">
+                            📅 리마인더 설정
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 병원 추천 섹션 (접을 수 있음) -->
+            <section class="bg-gradient-to-r from-primary-50 to-secondary-50 rounded-2xl overflow-hidden mt-4">
+                <button onclick="toggleSection('hospitalTop10')"
+                    class="w-full flex items-center justify-between p-4 hover:opacity-90 transition">
+                    <div class="flex items-center gap-2">
+                        <span class="text-xl">🏆</span>
+                        <span class="font-semibold">AI 추천 상급종합병원 Top 10</span>
+                    </div>
+                    <span id="hospitalTop10-arrow" class="text-neutral-400 transition-transform">▼</span>
+                </button>
+                <div id="hospitalTop10-content" class="px-4 pb-4 hidden">
+                    <p class="text-xs text-neutral-500 mb-3">진단명과 거주지역 기반 맞춤 추천</p>
+                    <div class="space-y-2 max-h-60 overflow-y-auto">
+                        <div class="bg-white/80 rounded-xl p-3 flex items-center gap-3">
+                            <span class="text-lg font-bold text-primary-500">1</span>
+                            <div class="flex-1">
+                                <p class="font-medium text-sm">서울대학교 어린이병원</p>
+                                <p class="text-xs text-neutral-500">매칭 95% • 대기 14일 • 소아신경과</p>
+                            </div>
+                            <button class="text-xs text-primary-500">상세</button>
+                        </div>
+                        <div class="bg-white/70 rounded-xl p-3 flex items-center gap-3">
+                            <span class="text-lg font-bold text-primary-400">2</span>
+                            <div class="flex-1">
+                                <p class="font-medium text-sm">세브란스 어린이병원</p>
+                                <p class="text-xs text-neutral-500">매칭 92% • 대기 21일 • 소아신경과</p>
+                            </div>
+                            <button class="text-xs text-primary-500">상세</button>
+                        </div>
+                        <div class="bg-white/60 rounded-xl p-3 flex items-center gap-3">
+                            <span class="text-lg font-bold text-neutral-400">3</span>
+                            <div class="flex-1">
+                                <p class="font-medium text-sm">삼성서울병원</p>
+                                <p class="text-xs text-neutral-500">매칭 89% • 대기 18일 • 소아신경과</p>
+                            </div>
+                            <button class="text-xs text-primary-500">상세</button>
+                        </div>
+                        <div class="bg-white/50 rounded-xl p-3 flex items-center gap-3">
+                            <span class="text-lg font-bold text-neutral-400">4</span>
+                            <div class="flex-1">
+                                <p class="font-medium text-sm">아산병원 어린이병원</p>
+                                <p class="text-xs text-neutral-500">매칭 87% • 대기 16일 • 소아신경과</p>
+                            </div>
+                            <button class="text-xs text-primary-500">상세</button>
+                        </div>
+                        <div class="bg-white/50 rounded-xl p-3 flex items-center gap-3">
+                            <span class="text-lg font-bold text-neutral-400">5</span>
+                            <div class="flex-1">
+                                <p class="font-medium text-sm">서울아산병원</p>
+                                <p class="text-xs text-neutral-500">매칭 85% • 대기 20일 • 신경과</p>
+                            </div>
+                            <button class="text-xs text-primary-500">상세</button>
+                        </div>
+                        <div class="bg-white/40 rounded-xl p-3 flex items-center gap-3">
+                            <span class="text-lg font-bold text-neutral-400">6</span>
+                            <div class="flex-1">
+                                <p class="font-medium text-sm">고려대학교 안암병원</p>
+                                <p class="text-xs text-neutral-500">매칭 83% • 대기 12일 • 소아청소년과</p>
+                            </div>
+                            <button class="text-xs text-primary-500">상세</button>
+                        </div>
+                        <div class="bg-white/40 rounded-xl p-3 flex items-center gap-3">
+                            <span class="text-lg font-bold text-neutral-400">7</span>
+                            <div class="flex-1">
+                                <p class="font-medium text-sm">분당서울대병원</p>
+                                <p class="text-xs text-neutral-500">매칭 81% • 대기 10일 • 소아신경과</p>
+                            </div>
+                            <button class="text-xs text-primary-500">상세</button>
+                        </div>
+                        <div class="bg-white/30 rounded-xl p-3 flex items-center gap-3">
+                            <span class="text-lg font-bold text-neutral-400">8</span>
+                            <div class="flex-1">
+                                <p class="font-medium text-sm">국립중앙의료원</p>
+                                <p class="text-xs text-neutral-500">매칭 79% • 대기 8일 • 소아청소년과</p>
+                            </div>
+                            <button class="text-xs text-primary-500">상세</button>
+                        </div>
+                        <div class="bg-white/30 rounded-xl p-3 flex items-center gap-3">
+                            <span class="text-lg font-bold text-neutral-400">9</span>
+                            <div class="flex-1">
+                                <p class="font-medium text-sm">경희대학교병원</p>
+                                <p class="text-xs text-neutral-500">매칭 77% • 대기 9일 • 소아신경과</p>
+                            </div>
+                            <button class="text-xs text-primary-500">상세</button>
+                        </div>
+                        <div class="bg-white/20 rounded-xl p-3 flex items-center gap-3">
+                            <span class="text-lg font-bold text-neutral-400">10</span>
+                            <div class="flex-1">
+                                <p class="font-medium text-sm">한양대학교병원</p>
+                                <p class="text-xs text-neutral-500">매칭 75% • 대기 7일 • 소아청소년과</p>
+                            </div>
+                            <button class="text-xs text-primary-500">상세</button>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- 거주지역 기반 재활병원 추천 (접을 수 있음) -->
+            <section class="bg-gradient-to-r from-accent-50 to-secondary-50 rounded-2xl overflow-hidden mt-4">
+                <button onclick="toggleSection('rehabTop10')"
+                    class="w-full flex items-center justify-between p-4 hover:opacity-90 transition">
+                    <div class="flex items-center gap-2">
+                        <span class="text-xl">🦾</span>
+                        <span class="font-semibold">내 주변 재활병원 Top 10</span>
+                    </div>
+                    <span id="rehabTop10-arrow" class="text-neutral-400 transition-transform">▼</span>
+                </button>
+                <div id="rehabTop10-content" class="px-4 pb-4 hidden">
+                    <p class="text-xs text-neutral-500 mb-3" id="rehabLocationText">거주지역: 서울특별시 기준</p>
+                    <div class="space-y-2 max-h-60 overflow-y-auto">
+                        <div class="bg-white/80 rounded-xl p-3 flex items-center gap-3">
+                            <span class="text-lg font-bold text-accent-400">1</span>
+                            <div class="flex-1">
+                                <p class="font-medium text-sm">국립재활원</p>
+                                <p class="text-xs text-neutral-500">강북구 • 5.2km • 소아재활 전문</p>
+                            </div>
+                            <button class="text-xs text-accent-400">길찾기</button>
+                        </div>
+                        <div class="bg-white/70 rounded-xl p-3 flex items-center gap-3">
+                            <span class="text-lg font-bold text-accent-300">2</span>
+                            <div class="flex-1">
+                                <p class="font-medium text-sm">서울재활병원</p>
+                                <p class="text-xs text-neutral-500">은평구 • 8.1km • 소아물리치료</p>
+                            </div>
+                            <button class="text-xs text-accent-400">길찾기</button>
+                        </div>
+                        <div class="bg-white/60 rounded-xl p-3 flex items-center gap-3">
+                            <span class="text-lg font-bold text-neutral-400">3</span>
+                            <div class="flex-1">
+                                <p class="font-medium text-sm">푸르메재활의원</p>
+                                <p class="text-xs text-neutral-500">마포구 • 3.5km • 발달재활</p>
+                            </div>
+                            <button class="text-xs text-accent-400">길찾기</button>
+                        </div>
+                        <div class="bg-white/50 rounded-xl p-3 flex items-center gap-3">
+                            <span class="text-lg font-bold text-neutral-400">4</span>
+                            <div class="flex-1">
+                                <p class="font-medium text-sm">보바스기념병원</p>
+                                <p class="text-xs text-neutral-500">송파구 • 12.3km • 뇌성마비 전문</p>
+                            </div>
+                            <button class="text-xs text-accent-400">길찾기</button>
+                        </div>
+                        <div class="bg-white/50 rounded-xl p-3 flex items-center gap-3">
+                            <span class="text-lg font-bold text-neutral-400">5</span>
+                            <div class="flex-1">
+                                <p class="font-medium text-sm">밀알재활센터</p>
+                                <p class="text-xs text-neutral-500">강서구 • 15.2km • 감각통합치료</p>
+                            </div>
+                            <button class="text-xs text-accent-400">길찾기</button>
+                        </div>
+                        <div class="bg-white/40 rounded-xl p-3 flex items-center gap-3">
+                            <span class="text-lg font-bold text-neutral-400">6</span>
+                            <div class="flex-1">
+                                <p class="font-medium text-sm">강남세브란스 재활의학과</p>
+                                <p class="text-xs text-neutral-500">강남구 • 9.8km • 소아재활</p>
+                            </div>
+                            <button class="text-xs text-accent-400">길찾기</button>
+                        </div>
+                        <div class="bg-white/40 rounded-xl p-3 flex items-center gap-3">
+                            <span class="text-lg font-bold text-neutral-400">7</span>
+                            <div class="flex-1">
+                                <p class="font-medium text-sm">삼성서울병원 재활의학과</p>
+                                <p class="text-xs text-neutral-500">강남구 • 10.2km • 소아신경재활</p>
+                            </div>
+                            <button class="text-xs text-accent-400">길찾기</button>
+                        </div>
+                        <div class="bg-white/30 rounded-xl p-3 flex items-center gap-3">
+                            <span class="text-lg font-bold text-neutral-400">8</span>
+                            <div class="flex-1">
+                                <p class="font-medium text-sm">어린이재활병원</p>
+                                <p class="text-xs text-neutral-500">관악구 • 7.5km • 발달지연 전문</p>
+                            </div>
+                            <button class="text-xs text-accent-400">길찾기</button>
+                        </div>
+                        <div class="bg-white/30 rounded-xl p-3 flex items-center gap-3">
+                            <span class="text-lg font-bold text-neutral-400">9</span>
+                            <div class="flex-1">
+                                <p class="font-medium text-sm">서울아이발달센터</p>
+                                <p class="text-xs text-neutral-500">동작구 • 6.8km • 작업치료</p>
+                            </div>
+                            <button class="text-xs text-accent-400">길찾기</button>
+                        </div>
+                        <div class="bg-white/20 rounded-xl p-3 flex items-center gap-3">
+                            <span class="text-lg font-bold text-neutral-400">10</span>
+                            <div class="flex-1">
+                                <p class="font-medium text-sm">희망재활의원</p>
+                                <p class="text-xs text-neutral-500">영등포구 • 11.4km • 언어치료</p>
+                            </div>
+                            <button class="text-xs text-accent-400">길찾기</button>
+                        </div>
+                    </div>
+                </div>
+            </section>
+        </main>
+
+        <!-- ============================================= -->
+        <!-- 연구 탭 컨텐츠 -->
+        <!-- ============================================= -->
+        <main id="research-tab" class="px-5 py-4 space-y-4 hidden">
+            <div class="flex items-center justify-between mb-2">
+                <h2 class="text-lg font-bold">🔬 글로벌 연구 브리핑</h2>
+            </div>
+
+            <!-- 실시간 검색 스위치 -->
+            <div class="bg-white rounded-2xl p-4 shadow-card flex items-center justify-between">
+                <div>
+                    <p class="font-medium">실시간 검색 활성화</p>
+                    <p class="text-xs text-neutral-500 mt-0.5">우리 아이 질환 관련 최신 연구 자동 수집</p>
+                </div>
+                <label class="relative inline-flex items-center cursor-pointer">
+                    <input type="checkbox" checked class="sr-only peer">
+                    <div
+                        class="w-11 h-6 bg-neutral-200 peer-focus:ring-4 peer-focus:ring-primary-100 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary-500">
+                    </div>
+                </label>
+            </div>
+
+            <!-- 임상 3상 요약 카드 -->
+            <div class="space-y-3">
+                <div class="bg-gradient-to-br from-accent-50 to-white rounded-2xl p-4 shadow-card">
+                    <div class="flex items-center gap-2 mb-2">
+                        <span class="bg-accent text-white text-xs px-2 py-0.5 rounded-full">Phase 3</span>
+                        <span class="text-xs text-neutral-500">FDA</span>
+                    </div>
+                    <h4 class="font-semibold">Vigabatrin 차세대 제형 임상 3상 완료</h4>
+                    <p class="text-sm text-neutral-600 mt-2 leading-relaxed">
+                        영아연축 치료제 Vigabatrin의 새로운 경구 제형이 임상 3상을 성공적으로 완료했습니다.
+                        기존 대비 부작용 감소 및 효능 개선이 확인되었습니다.
+                    </p>
+                    <div class="flex items-center justify-between mt-3">
+                        <span class="text-xs text-neutral-400">2026.01.05 • Lancet</span>
+                        <button class="text-primary-500 text-sm font-medium">자세히 보기 →</button>
+                    </div>
+                </div>
+
+                <div class="bg-gradient-to-br from-secondary-50 to-white rounded-2xl p-4 shadow-card">
+                    <div class="flex items-center gap-2 mb-2">
+                        <span class="bg-secondary text-neutral-700 text-xs px-2 py-0.5 rounded-full">연구</span>
+                        <span class="text-xs text-neutral-500">EMA</span>
+                    </div>
+                    <h4 class="font-semibold">희귀질환 유전자 치료 유럽 승인 임박</h4>
+                    <p class="text-sm text-neutral-600 mt-2 leading-relaxed">
+                        EMA 위원회에서 특정 희귀 대사질환 대상 유전자 치료제 승인을 권고했습니다.
+                        최종 결정은 2월 예정입니다.
+                    </p>
+                    <div class="flex items-center justify-between mt-3">
+                        <span class="text-xs text-neutral-400">2026.01.04 • NEJM</span>
+                        <button class="text-primary-500 text-sm font-medium">자세히 보기 →</button>
+                    </div>
+                </div>
+        </main>
+
+        <!-- ============================================= -->
+        <!-- 호프-커넥터 탭 (커뮤니티) -->
+        <!-- ============================================= -->
+        <main id="connect-tab" class="px-5 py-4 space-y-4 hidden">
+            <div class="flex items-center justify-between mb-2">
+                <h2 class="text-lg font-bold">💜 호프-커넥터</h2>
+                <span class="text-xs bg-secondary-100 text-secondary-500 px-2 py-1 rounded-full">익명 보장</span>
+            </div>
+
+            <!-- 커뮤니티 소개 -->
+            <section class="bg-gradient-to-br from-secondary-100 via-white to-primary-100 rounded-2xl p-5 shadow-card">
+                <div class="text-center">
+                    <span class="text-4xl">🤝</span>
+                    <h3 class="font-bold text-lg mt-2">비슷한 증상의 가족과 연결</h3>
+                    <p class="text-sm text-neutral-600 mt-2">
+                        같은 질환을 가진 환아 가족들과<br>
+                        익명으로 서로의 경험을 나누고 응원해요
+                    </p>
+                </div>
+            </section>
+
+            <!-- 매칭된 가족들 -->
+            <section class="bg-white rounded-2xl shadow-card overflow-hidden">
+                <button onclick="toggleSection('matchedFamilies')"
+                    class="w-full flex items-center justify-between p-4 hover:bg-neutral-50 transition">
+                    <div class="flex items-center gap-2">
+                        <span class="text-xl">👨‍👩‍👧</span>
+                        <span class="font-semibold">매칭된 가족</span>
+                        <span class="text-xs bg-primary-50 text-primary-500 px-2 py-0.5 rounded-full">5명</span>
+                    </div>
+                    <span id="matchedFamilies-arrow" class="text-neutral-400 transition-transform">▼</span>
+                </button>
+                <div id="matchedFamilies-content" class="px-4 pb-4 space-y-3">
+                    <div class="bg-neutral-50 rounded-xl p-4">
+                        <div class="flex items-center gap-3">
+                            <div
+                                class="w-12 h-12 bg-gradient-to-br from-primary-200 to-secondary-200 rounded-full flex items-center justify-center">
+                                <span class="text-xl">👩</span>
+                            </div>
+                            <div class="flex-1">
+                                <p class="font-medium">희망맘 (익명)</p>
+                                <p class="text-xs text-neutral-500">영아연축 • 만 14개월 • 경기도</p>
+                            </div>
+                            <button class="px-3 py-1.5 bg-primary-50 text-primary-500 text-xs rounded-lg">메시지</button>
+                        </div>
+                        <p class="text-sm text-neutral-600 mt-3 bg-white p-3 rounded-lg">
+                            "저희 아이도 비슷한 증상으로 서울대병원 다니고 있어요. 힘내세요! 💪"
+                        </p>
+                    </div>
+                    <div class="bg-neutral-50 rounded-xl p-4">
+                        <div class="flex items-center gap-3">
+                            <div
+                                class="w-12 h-12 bg-gradient-to-br from-accent-200 to-primary-200 rounded-full flex items-center justify-center">
+                                <span class="text-xl">👨</span>
+                            </div>
+                            <div class="flex-1">
+                                <p class="font-medium">응원아빠 (익명)</p>
+                                <p class="text-xs text-neutral-500">웨스트증후군 • 만 2세 • 서울</p>
+                            </div>
+                            <button class="px-3 py-1.5 bg-primary-50 text-primary-500 text-xs rounded-lg">메시지</button>
+                        </div>
+                        <p class="text-sm text-neutral-600 mt-3 bg-white p-3 rounded-lg">
+                            "재활치료 병원 추천해요. 보바스기념병원 좋았어요!"
+                        </p>
+                    </div>
+                    <div class="bg-neutral-50 rounded-xl p-4">
+                        <div class="flex items-center gap-3">
+                            <div
+                                class="w-12 h-12 bg-gradient-to-br from-secondary-200 to-accent-200 rounded-full flex items-center justify-center">
+                                <span class="text-xl">👩</span>
+                            </div>
+                            <div class="flex-1">
+                                <p class="font-medium">든든한엄마 (익명)</p>
+                                <p class="text-xs text-neutral-500">영아연축 • 만 18개월 • 인천</p>
+                            </div>
+                            <button class="px-3 py-1.5 bg-primary-50 text-primary-500 text-xs rounded-lg">메시지</button>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- 질문 게시판 -->
+            <section class="bg-white rounded-2xl shadow-card overflow-hidden">
+                <button onclick="toggleSection('communityQA')"
+                    class="w-full flex items-center justify-between p-4 hover:bg-neutral-50 transition">
+                    <div class="flex items-center gap-2">
+                        <span class="text-xl">❓</span>
+                        <span class="font-semibold">질문 & 답변</span>
+                        <span class="text-xs bg-accent-50 text-accent-400 px-2 py-0.5 rounded-full">새글 3</span>
+                    </div>
+                    <span id="communityQA-arrow" class="text-neutral-400 transition-transform">▼</span>
+                </button>
+                <div id="communityQA-content" class="px-4 pb-4 space-y-3">
+                    <div class="border-l-4 border-primary bg-primary-50/50 rounded-r-xl p-3">
+                        <p class="font-medium text-sm">비가바트린 복용 후 부작용 경험 있으신가요?</p>
+                        <div class="flex items-center gap-2 mt-2">
+                            <span class="text-xs text-neutral-500">희망맘</span>
+                            <span class="text-xs text-neutral-400">• 2시간 전</span>
+                            <span class="ml-auto text-xs bg-primary-100 text-primary-500 px-2 py-0.5 rounded-full">답변
+                                7</span>
+                        </div>
+                    </div>
+                    <div class="border-l-4 border-accent bg-accent-50/50 rounded-r-xl p-3">
+                        <p class="font-medium text-sm">발달재활 바우처 신청 방법 알려주세요!</p>
+                        <div class="flex items-center gap-2 mt-2">
+                            <span class="text-xs text-neutral-500">초보맘</span>
+                            <span class="text-xs text-neutral-400">• 5시간 전</span>
+                            <span class="ml-auto text-xs bg-accent-100 text-accent-400 px-2 py-0.5 rounded-full">답변
+                                12</span>
+                        </div>
+                    </div>
+                    <div class="border-l-4 border-secondary bg-secondary-50/50 rounded-r-xl p-3">
+                        <p class="font-medium text-sm">케토제닉 식단 하시는 분 계신가요?</p>
+                        <div class="flex items-center gap-2 mt-2">
+                            <span class="text-xs text-neutral-500">응원아빠</span>
+                            <span class="text-xs text-neutral-400">• 1일 전</span>
+                            <span
+                                class="ml-auto text-xs bg-secondary-100 text-secondary-400 px-2 py-0.5 rounded-full">답변
+                                5</span>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- 질문하기 버튼 -->
+            <button
+                class="w-full py-4 bg-gradient-to-r from-secondary-400 to-primary-400 text-white rounded-2xl font-medium shadow-card flex items-center justify-center gap-2 hover:opacity-90 transition">
+                <span>✍️</span> 새 질문 올리기
+            </button>
+
+            <!-- 응원 메시지 -->
+            <section class="bg-gradient-to-r from-primary-100 to-secondary-100 rounded-2xl p-4">
+                <h4 class="font-semibold flex items-center gap-2 mb-3">
+                    <span>💌</span> 오늘의 응원 메시지
+                </h4>
+                <div class="bg-white/80 rounded-xl p-4 text-center">
+                    <p class="text-lg">"오늘도 우리 아이와 함께 한 걸음 💕"</p>
+                    <p class="text-xs text-neutral-500 mt-2">- 든든한엄마 님이 보낸 응원</p>
+                </div>
+                <button class="w-full mt-3 py-2 bg-white/60 text-secondary-500 rounded-xl text-sm font-medium">
+                    💜 나도 응원 보내기
+                </button>
+            </section>
+        </main>
+
+        <!-- ============================================= -->
+        <!-- AI 케어 파트너 탭 -->
+        <!-- ============================================= -->
+        <main id="aicare-tab" class="px-5 py-4 space-y-4 hidden">
+            <div class="flex items-center justify-between mb-2">
+                <h2 class="text-lg font-bold">🤖 AI 케어 파트너</h2>
+                <span class="text-xs bg-primary-100 text-primary-500 px-2 py-1 rounded-full">24시간</span>
+            </div>
+
+            <!-- AI 소개 -->
+            <section class="bg-gradient-to-br from-primary-100 via-white to-accent-100 rounded-2xl p-5 shadow-card">
+                <div class="flex items-center gap-4">
+                    <div
+                        class="w-16 h-16 bg-gradient-to-br from-primary-400 to-accent-400 rounded-2xl flex items-center justify-center shadow-card">
+                        <span class="text-3xl">🤖</span>
+                    </div>
+                    <div class="flex-1">
+                        <h3 class="font-bold text-lg">호프 AI</h3>
+                        <p class="text-sm text-neutral-600 mt-1">
+                            의무기록지 해석부터 정서 상담까지<br>
+                            <span class="text-primary-500 font-medium">어려운 용어는 쉽게 설명해드릴게요</span>
+                        </p>
+                    </div>
+                </div>
+            </section>
+
+            <!-- 빠른 기능 메뉴 -->
+            <section class="grid grid-cols-2 gap-3">
+                <button onclick="startAIChat('record')"
+                    class="bg-white rounded-2xl p-4 shadow-card text-left hover:shadow-lg transition">
+                    <span class="text-2xl">📋</span>
+                    <h4 class="font-semibold mt-2">의무기록 해석</h4>
+                    <p class="text-xs text-neutral-500 mt-1">사진 찍어서 올리면<br>쉽게 설명해드려요</p>
+                </button>
+                <button onclick="startAIChat('emotion')"
+                    class="bg-white rounded-2xl p-4 shadow-card text-left hover:shadow-lg transition">
+                    <span class="text-2xl">💚</span>
+                    <h4 class="font-semibold mt-2">정서 상담</h4>
+                    <p class="text-xs text-neutral-500 mt-1">힘들 때 언제든<br>이야기 나눠요</p>
+                </button>
+                <button onclick="startAIChat('welfare')"
+                    class="bg-white rounded-2xl p-4 shadow-card text-left hover:shadow-lg transition">
+                    <span class="text-2xl">🏛️</span>
+                    <h4 class="font-semibold mt-2">복지혜택 안내</h4>
+                    <p class="text-xs text-neutral-500 mt-1">받을 수 있는 지원금<br>알려드려요</p>
+                </button>
+                <button onclick="startAIChat('medicine')"
+                    class="bg-white rounded-2xl p-4 shadow-card text-left hover:shadow-lg transition">
+                    <span class="text-2xl">💊</span>
+                    <h4 class="font-semibold mt-2">약물 정보</h4>
+                    <p class="text-xs text-neutral-500 mt-1">복용약 정보와<br>주의사항 안내</p>
+                </button>
+            </section>
+
+            <!-- AI 채팅 영역 -->
+            <section class="bg-white rounded-2xl shadow-card overflow-hidden">
+                <div class="bg-gradient-to-r from-primary-50 to-accent-50 p-3 flex items-center gap-2">
+                    <span class="text-lg">💬</span>
+                    <span class="font-semibold">호프 AI와 대화하기</span>
+                </div>
+
+                <!-- 채팅 메시지 영역 -->
+                <div id="chatMessages" class="h-64 overflow-y-auto p-4 space-y-3">
+                    <!-- AI 인사 메시지 -->
+                    <div class="flex gap-2">
+                        <div class="w-8 h-8 bg-primary-100 rounded-full flex items-center justify-center flex-shrink-0">
+                            <span>🤖</span>
+                        </div>
+                        <div class="bg-neutral-100 rounded-2xl rounded-tl-none p-3 max-w-[80%]">
+                            <p class="text-sm">안녕하세요! 저는 <strong>호프 AI</strong>예요. 😊</p>
+                            <p class="text-sm mt-2">아이의 진료 기록 해석이 필요하시거나, 힘드실 때 이야기 나누고 싶으시면 말씀해주세요.</p>
+                            <p class="text-xs text-neutral-400 mt-2">오늘 15:45</p>
+                        </div>
+                    </div>
+
+                    <!-- 빠른 질문 버튼 -->
+                    <div class="flex flex-wrap gap-2 mt-2">
+                        <button onclick="sendQuickQuestion('의무기록지에 있는 용어가 이해가 안 돼요')"
+                            class="text-xs bg-primary-50 text-primary-500 px-3 py-1.5 rounded-full hover:bg-primary-100 transition">
+                            📋 의무기록 용어 해석
+                        </button>
+                        <button onclick="sendQuickQuestion('오늘 많이 지치네요...')"
+                            class="text-xs bg-accent-50 text-accent-400 px-3 py-1.5 rounded-full hover:bg-accent-100 transition">
+                            💚 마음이 힘들어요
+                        </button>
+                        <button onclick="sendQuickQuestion('산정특례 신청 방법 알려주세요')"
+                            class="text-xs bg-secondary-50 text-secondary-400 px-3 py-1.5 rounded-full hover:bg-secondary-100 transition">
+                            🏛️ 복지혜택 문의
+                        </button>
+                    </div>
+                </div>
+
+                <!-- 입력 영역 -->
+                <div class="border-t border-neutral-100 p-3 flex gap-2">
+                    <button
+                        class="w-10 h-10 bg-neutral-100 rounded-full flex items-center justify-center text-neutral-500 hover:bg-neutral-200 transition">
+                        📷
+                    </button>
+                    <input type="text" id="chatInput" placeholder="호프 AI에게 물어보세요..."
+                        class="flex-1 px-4 py-2 bg-neutral-100 rounded-full outline-none focus:ring-2 focus:ring-primary-200 text-sm"
+                        onkeypress="if(event.key==='Enter') sendChatMessage()">
+                    <button onclick="sendChatMessage()"
+                        class="w-10 h-10 bg-primary text-white rounded-full flex items-center justify-center hover:bg-primary-400 transition">
+                        ➤
+                    </button>
+                </div>
+            </section>
+
+            <!-- 최근 상담 기록 -->
+            <section class="bg-white rounded-2xl shadow-card overflow-hidden">
+                <button onclick="toggleSection('recentChats')"
+                    class="w-full flex items-center justify-between p-4 hover:bg-neutral-50 transition">
+                    <div class="flex items-center gap-2">
+                        <span class="text-xl">📝</span>
+                        <span class="font-semibold">최근 상담 기록</span>
+                    </div>
+                    <span id="recentChats-arrow" class="text-neutral-400 transition-transform">▼</span>
+                </button>
+                <div id="recentChats-content" class="px-4 pb-4 space-y-2 hidden">
+                    <div class="bg-neutral-50 rounded-xl p-3">
+                        <p class="text-sm font-medium">MRI 검사 결과 용어 해석</p>
+                        <p class="text-xs text-neutral-500 mt-1">어제 오후 3:20</p>
+                    </div>
+                    <div class="bg-neutral-50 rounded-xl p-3">
+                        <p class="text-sm font-medium">비가바트린 부작용 상담</p>
+                        <p class="text-xs text-neutral-500 mt-1">1월 4일 오전 10:15</p>
+                    </div>
+                    <div class="bg-neutral-50 rounded-xl p-3">
+                        <p class="text-sm font-medium">장애등록 절차 문의</p>
+                        <p class="text-xs text-neutral-500 mt-1">1월 3일 오후 7:40</p>
+                    </div>
+                </div>
+            </section>
+        </main>
+
+        <!-- ============================================= -->
+        <!-- 의료 기록지 해석 탭 -->
+        <!-- ============================================= -->
+        <main id="medical-record-tab" class="px-5 py-4 space-y-6 hidden">
+            <!-- 헤더 -->
+            <section class="bg-gradient-to-r from-blue-100 to-accent-100 rounded-2xl p-5 shadow-card">
+                <div class="flex items-center gap-4">
+                    <div class="w-16 h-16 bg-white rounded-2xl flex items-center justify-center shadow-lg">
+                        <span class="text-4xl">📋</span>
+                    </div>
+                    <div>
+                        <h2 class="text-lg font-bold text-neutral-800">의료 기록지 해석</h2>
+                        <p class="text-sm text-neutral-600">진단서, 검사 결과지를 사진으로 찍으면<br>쉽게 해석해 드려요</p>
+                    </div>
+                </div>
+            </section>
+
+            <!-- 사진 업로드 영역 -->
+            <section class="bg-white rounded-2xl p-5 shadow-card border border-dashed border-primary-300">
+                <div class="text-center">
+                    <div id="upload-preview" class="hidden mb-4">
+                        <img id="preview-image" src="" alt="업로드된 이미지" class="max-h-64 mx-auto rounded-xl shadow-lg">
+                    </div>
+
+                    <div id="upload-placeholder" class="py-8">
+                        <div class="w-20 h-20 bg-primary-50 rounded-full flex items-center justify-center mx-auto mb-4">
+                            <span class="text-4xl">📷</span>
+                        </div>
+                        <h3 class="font-semibold text-neutral-700 mb-2">의료 기록지 사진 업로드</h3>
+                        <p class="text-sm text-neutral-500 mb-4">
+                            진단서, MRI/CT 결과지, 혈액 검사지 등<br>
+                            어려운 의료 문서를 쉽게 해석해 드려요
+                        </p>
+                        <label class="inline-block cursor-pointer">
+                            <input type="file" accept="image/*" onchange="handleImageUpload(event)" class="hidden">
+                            <span
+                                class="px-6 py-3 bg-primary-300 text-white rounded-xl font-semibold hover:bg-primary-400 transition inline-block">
+                                📎 사진 선택하기
+                            </span>
+                        </label>
+                    </div>
+                </div>
+            </section>
+
+            <!-- 해석 결과 영역 -->
+            <section id="interpretation-result" class="bg-white rounded-2xl p-5 shadow-card hidden">
+                <h3 class="font-bold text-lg mb-4 flex items-center gap-2">
+                    <span class="text-xl">🔍</span> 해석 결과
+                </h3>
+                <div id="interpretation-content" class="space-y-4">
+                    <!-- 결과가 여기에 표시됩니다 -->
+                </div>
+            </section>
+
+            <!-- 자주 사용하는 해석 -->
+            <section class="bg-white rounded-2xl shadow-card overflow-hidden">
+                <h3 class="font-semibold p-4 border-b border-neutral-100 flex items-center gap-2">
+                    <span class="text-lg">📁</span> 최근 해석 기록
+                </h3>
+                <div class="p-4 space-y-3">
+                    <div class="bg-blue-50 rounded-xl p-3">
+                        <p class="text-sm font-medium">EEG 검사 결과지</p>
+                        <p class="text-xs text-neutral-500 mt-1">어제 해석 완료</p>
+                    </div>
+                    <div class="bg-blue-50 rounded-xl p-3">
+                        <p class="text-sm font-medium">혈액 검사 결과</p>
+                        <p class="text-xs text-neutral-500 mt-1">1월 5일 해석 완료</p>
+                    </div>
+                </div>
+            </section>
+        </main>
+
+        <!-- ============================================= -->
+        <!-- 의료 용어 사전 탭 -->
+        <!-- ============================================= -->
+        <main id="medical-terms-tab" class="px-5 py-4 space-y-6 hidden">
+            <!-- 헤더 -->
+            <section class="bg-gradient-to-r from-purple-100 to-secondary-100 rounded-2xl p-5 shadow-card">
+                <div class="flex items-center gap-4">
+                    <div class="w-16 h-16 bg-white rounded-2xl flex items-center justify-center shadow-lg">
+                        <span class="text-4xl">📖</span>
+                    </div>
+                    <div>
+                        <h2 class="text-lg font-bold text-neutral-800">의료 용어 사전</h2>
+                        <p class="text-sm text-neutral-600">어려운 의료 용어를<br>쉽게 풀어서 설명해 드려요</p>
+                    </div>
+                </div>
+            </section>
+
+            <!-- 검색 영역 -->
+            <section class="bg-white rounded-2xl p-4 shadow-card">
+                <div class="relative">
+                    <input type="text" id="term-search" placeholder="찾고 싶은 의료 용어를 입력하세요"
+                        class="w-full px-4 py-3 pl-12 bg-neutral-50 rounded-xl outline-none focus:ring-2 focus:ring-primary-200"
+                        oninput="searchMedicalTerm(this.value)">
+                    <span class="absolute left-4 top-1/2 -translate-y-1/2 text-xl">🔍</span>
+                </div>
+            </section>
+
+            <!-- 검색 결과 -->
+            <section id="term-result" class="bg-white rounded-2xl p-5 shadow-card hidden">
+                <div id="term-result-content">
+                    <!-- 검색 결과가 여기에 표시됩니다 -->
+                </div>
+            </section>
+
+            <!-- 자주 찾는 용어 -->
+            <section class="bg-white rounded-2xl shadow-card overflow-hidden">
+                <h3 class="font-semibold p-4 border-b border-neutral-100 flex items-center gap-2">
+                    <span class="text-lg">⭐</span> 자주 찾는 의료 용어
+                </h3>
+                <div class="p-4 space-y-3">
+                    <button onclick="showTermDefinition('EEG')"
+                        class="w-full text-left bg-purple-50 rounded-xl p-3 hover:bg-purple-100 transition">
+                        <p class="font-medium text-purple-700">EEG (뇌파 검사)</p>
+                        <p class="text-xs text-neutral-500 mt-1">뇌의 전기적 활동을 측정하는 검사</p>
+                    </button>
+                    <button onclick="showTermDefinition('MRI')"
+                        class="w-full text-left bg-purple-50 rounded-xl p-3 hover:bg-purple-100 transition">
+                        <p class="font-medium text-purple-700">MRI (자기공명영상)</p>
+                        <p class="text-xs text-neutral-500 mt-1">강력한 자기장으로 뇌 구조를 촬영</p>
+                    </button>
+                    <button onclick="showTermDefinition('Spasm')"
+                        class="w-full text-left bg-purple-50 rounded-xl p-3 hover:bg-purple-100 transition">
+                        <p class="font-medium text-purple-700">Spasm (연축)</p>
+                        <p class="text-xs text-neutral-500 mt-1">근육의 갑작스러운 수축</p>
+                    </button>
+                    <button onclick="showTermDefinition('Hypsarrhythmia')"
+                        class="w-full text-left bg-purple-50 rounded-xl p-3 hover:bg-purple-100 transition">
+                        <p class="font-medium text-purple-700">Hypsarrhythmia (고진폭부정맥)</p>
+                        <p class="text-xs text-neutral-500 mt-1">웨스트 증후군의 특징적인 뇌파 패턴</p>
+                    </button>
+                    <button onclick="showTermDefinition('ACTH')"
+                        class="w-full text-left bg-purple-50 rounded-xl p-3 hover:bg-purple-100 transition">
+                        <p class="font-medium text-purple-700">ACTH (부신피질자극호르몬)</p>
+                        <p class="text-xs text-neutral-500 mt-1">영아연축 치료에 사용되는 호르몬</p>
+                    </button>
+                </div>
+            </section>
+
+            <!-- 카테고리별 용어 -->
+            <section class="bg-white rounded-2xl shadow-card overflow-hidden">
+                <button onclick="toggleSection('termCategories')"
+                    class="w-full flex items-center justify-between p-4 hover:bg-neutral-50 transition">
+                    <div class="flex items-center gap-2">
+                        <span class="text-xl">📚</span>
+                        <span class="font-semibold">카테고리별 용어</span>
+                    </div>
+                    <span id="termCategories-arrow" class="text-neutral-400 transition-transform">▼</span>
+                </button>
+                <div id="termCategories-content" class="px-4 pb-4 hidden">
+                    <div class="grid grid-cols-2 gap-3">
+                        <button onclick="showCategory('신경계')"
+                            class="p-3 bg-blue-50 rounded-xl text-center hover:bg-blue-100 transition">
+                            <span class="text-2xl">🧠</span>
+                            <p class="text-sm font-medium mt-1">신경계</p>
+                        </button>
+                        <button onclick="showCategory('검사')"
+                            class="p-3 bg-green-50 rounded-xl text-center hover:bg-green-100 transition">
+                            <span class="text-2xl">🔬</span>
+                            <p class="text-sm font-medium mt-1">검사</p>
+                        </button>
+                        <button onclick="showCategory('약물')"
+                            class="p-3 bg-yellow-50 rounded-xl text-center hover:bg-yellow-100 transition">
+                            <span class="text-2xl">💊</span>
+                            <p class="text-sm font-medium mt-1">약물</p>
+                        </button>
+                        <button onclick="showCategory('증상')"
+                            class="p-3 bg-red-50 rounded-xl text-center hover:bg-red-100 transition">
+                            <span class="text-2xl">🩺</span>
+                            <p class="text-sm font-medium mt-1">증상</p>
+                        </button>
+                    </div>
+                </div>
+            </section>
+        </main>
+
+        <!-- ============================================= -->
+        <!-- 서류 자동화 탭 -->
+        <!-- ============================================= -->
+        <main id="admin-tab" class="px-5 py-4 space-y-6 hidden">
+            <!-- 헤더 -->
+            <section class="bg-gradient-to-r from-neutral-100 to-primary-50 rounded-2xl p-5 shadow-card">
+                <div class="flex items-center gap-4">
+                    <div class="w-16 h-16 bg-white rounded-2xl flex items-center justify-center shadow-lg">
+                        <span class="text-4xl">📝</span>
+                    </div>
+                    <div>
+                        <h2 class="text-lg font-bold text-neutral-800">서류 자동화</h2>
+                        <p class="text-sm text-neutral-600">정부 지원금 신청 서류를<br>자동으로 생성해 드려요</p>
+                    </div>
+                </div>
+            </section>
+
+            <!-- 지원금 종류 -->
+            <section class="bg-white rounded-2xl shadow-card overflow-hidden">
+                <h3 class="font-semibold p-4 border-b border-neutral-100 flex items-center gap-2">
+                    <span class="text-lg">💰</span> 신청 가능한 지원금
+                </h3>
+                <div class="p-4 space-y-3">
+                    <button onclick="generateDocument('산정특례')"
+                        class="w-full text-left bg-primary-50 rounded-xl p-4 hover:bg-primary-100 transition">
+                        <div class="flex justify-between items-center">
+                            <div>
+                                <p class="font-semibold text-primary-600">🏥 산정특례 신청서</p>
+                                <p class="text-xs text-neutral-500 mt-1">희귀질환 의료비 90% 지원</p>
+                            </div>
+                            <span class="text-primary-400">생성 →</span>
+                        </div>
+                    </button>
+                    <button onclick="generateDocument('장애등록')"
+                        class="w-full text-left bg-accent-50 rounded-xl p-4 hover:bg-accent-100 transition">
+                        <div class="flex justify-between items-center">
+                            <div>
+                                <p class="font-semibold text-accent-500">♿ 장애등록 신청서</p>
+                                <p class="text-xs text-neutral-500 mt-1">장애인 등록 및 복지카드 발급</p>
+                            </div>
+                            <span class="text-accent-400">생성 →</span>
+                        </div>
+                    </button>
+                    <button onclick="generateDocument('발달재활')"
+                        class="w-full text-left bg-secondary-50 rounded-xl p-4 hover:bg-secondary-100 transition">
+                        <div class="flex justify-between items-center">
+                            <div>
+                                <p class="font-semibold text-secondary-400">🧩 발달재활 바우처</p>
+                                <p class="text-xs text-neutral-500 mt-1">월 14~22만원 치료비 지원</p>
+                            </div>
+                            <span class="text-secondary-300">생성 →</span>
+                        </div>
+                    </button>
+                    <button onclick="generateDocument('긴급복지')"
+                        class="w-full text-left bg-warning-light rounded-xl p-4 hover:bg-yellow-100 transition">
+                        <div class="flex justify-between items-center">
+                            <div>
+                                <p class="font-semibold text-yellow-700">🆘 긴급복지 지원</p>
+                                <p class="text-xs text-neutral-500 mt-1">위기 상황 긴급 생계/의료비</p>
+                            </div>
+                            <span class="text-yellow-600">생성 →</span>
+                        </div>
+                    </button>
+                </div>
+            </section>
+
+            <!-- 최근 생성 서류 -->
+            <section class="bg-white rounded-2xl shadow-card overflow-hidden">
+                <h3 class="font-semibold p-4 border-b border-neutral-100 flex items-center gap-2">
+                    <span class="text-lg">📋</span> 최근 생성 서류
+                </h3>
+                <div class="p-4 space-y-2">
+                    <div class="bg-neutral-50 rounded-xl p-3 flex justify-between items-center">
+                        <div>
+                            <p class="text-sm font-medium">산정특례 신청서</p>
+                            <p class="text-xs text-neutral-500">2026.01.05 생성</p>
+                        </div>
+                        <button class="text-xs bg-primary-100 text-primary-600 px-3 py-1 rounded-full">다운로드</button>
+                    </div>
+                </div>
+            </section>
+        </main>
+
+        <!-- ============================================= -->
+        <!-- 캘린더 동기화 탭 -->
+        <!-- ============================================= -->
+        <main id="calendar-tab" class="px-5 py-4 space-y-6 hidden">
+            <!-- 헤더 -->
+            <section class="bg-gradient-to-r from-primary-50 to-accent-50 rounded-2xl p-5 shadow-card">
+                <div class="flex items-center gap-4">
+                    <div class="w-16 h-16 bg-white rounded-2xl flex items-center justify-center shadow-lg">
+                        <span class="text-4xl">📆</span>
+                    </div>
+                    <div>
+                        <h2 class="text-lg font-bold text-neutral-800">캘린더 동기화</h2>
+                        <p class="text-sm text-neutral-600">외부 캘린더와 일정을<br>양방향으로 연동해요</p>
+                    </div>
+                </div>
+            </section>
+
+            <!-- 연동 상태 -->
+            <section class="bg-white rounded-2xl p-5 shadow-card">
+                <h3 class="font-semibold mb-4 flex items-center gap-2">
+                    <span class="text-lg">🔗</span> 연동 상태
+                </h3>
+                <div class="space-y-4">
+                    <div class="flex items-center justify-between p-4 bg-green-50 rounded-xl border border-green-200">
+                        <div class="flex items-center gap-3">
+                            <span class="text-2xl">📅</span>
+                            <div>
+                                <p class="font-medium">Google Calendar</p>
+                                <p class="text-xs text-green-600">✓ 연동됨</p>
+                            </div>
+                        </div>
+                        <button onclick="disconnectCalendar('google')"
+                            class="text-xs bg-white text-neutral-600 px-3 py-2 rounded-lg border">연결 해제</button>
+                    </div>
+                    <div
+                        class="flex items-center justify-between p-4 bg-neutral-50 rounded-xl border border-neutral-200">
+                        <div class="flex items-center gap-3">
+                            <span class="text-2xl">📱</span>
+                            <div>
+                                <p class="font-medium">Apple Calendar</p>
+                                <p class="text-xs text-neutral-500">연결 안됨</p>
+                            </div>
+                        </div>
+                        <button onclick="connectCalendar('apple')"
+                            class="text-xs bg-primary-300 text-white px-3 py-2 rounded-lg">연결하기</button>
+                    </div>
+                    <div
+                        class="flex items-center justify-between p-4 bg-neutral-50 rounded-xl border border-neutral-200">
+                        <div class="flex items-center gap-3">
+                            <span class="text-2xl">📧</span>
+                            <div>
+                                <p class="font-medium">Outlook Calendar</p>
+                                <p class="text-xs text-neutral-500">연결 안됨</p>
+                            </div>
+                        </div>
+                        <button onclick="connectCalendar('outlook')"
+                            class="text-xs bg-primary-300 text-white px-3 py-2 rounded-lg">연결하기</button>
+                    </div>
+                </div>
+            </section>
+
+            <!-- 동기화 설정 -->
+            <section class="bg-white rounded-2xl shadow-card overflow-hidden">
+                <h3 class="font-semibold p-4 border-b border-neutral-100 flex items-center gap-2">
+                    <span class="text-lg">⚙️</span> 동기화 설정
+                </h3>
+                <div class="p-4 space-y-4">
+                    <div class="flex items-center justify-between">
+                        <div>
+                            <p class="font-medium">자동 동기화</p>
+                            <p class="text-xs text-neutral-500">새 일정 자동 추가</p>
+                        </div>
+                        <label class="relative inline-flex items-center cursor-pointer">
+                            <input type="checkbox" checked class="sr-only peer">
+                            <div
+                                class="w-11 h-6 bg-neutral-200 rounded-full peer peer-checked:bg-primary-400 after:content-[''] after:absolute after:top-0.5 after:left-0.5 after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:after:translate-x-full">
+                            </div>
+                        </label>
+                    </div>
+                    <div class="flex items-center justify-between">
+                        <div>
+                            <p class="font-medium">알림 동기화</p>
+                            <p class="text-xs text-neutral-500">일정 알림도 함께 동기화</p>
+                        </div>
+                        <label class="relative inline-flex items-center cursor-pointer">
+                            <input type="checkbox" checked class="sr-only peer">
+                            <div
+                                class="w-11 h-6 bg-neutral-200 rounded-full peer peer-checked:bg-primary-400 after:content-[''] after:absolute after:top-0.5 after:left-0.5 after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:after:translate-x-full">
+                            </div>
+                        </label>
+                    </div>
+                    <div class="flex items-center justify-between">
+                        <div>
+                            <p class="font-medium">충돌 알림</p>
+                            <p class="text-xs text-neutral-500">일정 겹침 시 알림</p>
+                        </div>
+                        <label class="relative inline-flex items-center cursor-pointer">
+                            <input type="checkbox" checked class="sr-only peer">
+                            <div
+                                class="w-11 h-6 bg-neutral-200 rounded-full peer peer-checked:bg-primary-400 after:content-[''] after:absolute after:top-0.5 after:left-0.5 after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:after:translate-x-full">
+                            </div>
+                        </label>
+                    </div>
+                </div>
+            </section>
+
+            <!-- 수동 동기화 -->
+            <button onclick="syncCalendarNow()"
+                class="w-full py-4 bg-primary-300 text-white rounded-xl font-semibold hover:bg-primary-400 transition flex items-center justify-center gap-2">
+                <span>🔄</span> 지금 동기화하기
+            </button>
+        </main>
+
+        <!-- ============================================= -->
+        <!-- 설정 탭 -->
+        <!-- ============================================= -->
+        <main id="settings-tab" class="px-5 py-4 space-y-6 hidden">
+            <!-- 헤더 -->
+            <section class="bg-gradient-to-r from-neutral-50 to-neutral-100 rounded-2xl p-5 shadow-card">
+                <div class="flex items-center gap-4">
+                    <div class="w-16 h-16 bg-white rounded-2xl flex items-center justify-center shadow-lg">
+                        <span class="text-4xl">⚙️</span>
+                    </div>
+                    <div>
+                        <h2 class="text-lg font-bold text-neutral-800">설정</h2>
+                        <p class="text-sm text-neutral-600">앱 설정을 관리해요</p>
+                    </div>
+                </div>
+            </section>
+
+            <!-- 알림 설정 -->
+            <section class="bg-white rounded-2xl shadow-card overflow-hidden">
+                <h3 class="font-semibold p-4 border-b border-neutral-100 flex items-center gap-2">
+                    <span class="text-lg">🔔</span> 알림 설정
+                </h3>
+                <div class="p-4 space-y-4">
+                    <div class="flex items-center justify-between">
+                        <div>
+                            <p class="font-medium">푸시 알림</p>
+                            <p class="text-xs text-neutral-500">일정 및 중요 알림</p>
+                        </div>
+                        <label class="relative inline-flex items-center cursor-pointer">
+                            <input type="checkbox" checked class="sr-only peer">
+                            <div
+                                class="w-11 h-6 bg-neutral-200 rounded-full peer peer-checked:bg-primary-400 after:content-[''] after:absolute after:top-0.5 after:left-0.5 after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:after:translate-x-full">
+                            </div>
+                        </label>
+                    </div>
+                    <div class="flex items-center justify-between">
+                        <div>
+                            <p class="font-medium">취소분 레이더 알림</p>
+                            <p class="text-xs text-neutral-500">예약 취소 발생 시</p>
+                        </div>
+                        <label class="relative inline-flex items-center cursor-pointer">
+                            <input type="checkbox" checked class="sr-only peer">
+                            <div
+                                class="w-11 h-6 bg-neutral-200 rounded-full peer peer-checked:bg-primary-400 after:content-[''] after:absolute after:top-0.5 after:left-0.5 after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:after:translate-x-full">
+                            </div>
+                        </label>
+                    </div>
+                    <div class="flex items-center justify-between">
+                        <div>
+                            <p class="font-medium">커뮤니티 알림</p>
+                            <p class="text-xs text-neutral-500">새 글, 댓글 알림</p>
+                        </div>
+                        <label class="relative inline-flex items-center cursor-pointer">
+                            <input type="checkbox" class="sr-only peer">
+                            <div
+                                class="w-11 h-6 bg-neutral-200 rounded-full peer peer-checked:bg-primary-400 after:content-[''] after:absolute after:top-0.5 after:left-0.5 after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:after:translate-x-full">
+                            </div>
+                        </label>
+                    </div>
+                </div>
+            </section>
+
+            <!-- 계정 정보 -->
+            <section class="bg-white rounded-2xl shadow-card overflow-hidden">
+                <h3 class="font-semibold p-4 border-b border-neutral-100 flex items-center gap-2">
+                    <span class="text-lg">👤</span> 계정 정보
+                </h3>
+                <div class="p-4 space-y-3">
+                    <div class="flex justify-between items-center py-2">
+                        <p class="text-neutral-600">이메일</p>
+                        <p class="font-medium" id="settings-email">test@example.com</p>
+                    </div>
+                    <div class="flex justify-between items-center py-2">
+                        <p class="text-neutral-600">이름</p>
+                        <p class="font-medium" id="settings-name">보호자</p>
+                    </div>
+                    <div class="flex justify-between items-center py-2">
+                        <p class="text-neutral-600">가입일</p>
+                        <p class="font-medium">2026.01.07</p>
+                    </div>
+                </div>
+            </section>
+
+            <!-- 앱 정보 -->
+            <section class="bg-white rounded-2xl shadow-card overflow-hidden">
+                <h3 class="font-semibold p-4 border-b border-neutral-100 flex items-center gap-2">
+                    <span class="text-lg">ℹ️</span> 앱 정보
+                </h3>
+                <div class="p-4 space-y-3">
+                    <div class="flex justify-between items-center py-2">
+                        <p class="text-neutral-600">앱 버전</p>
+                        <p class="font-medium">v1.0.0</p>
+                    </div>
+                    <div class="flex justify-between items-center py-2">
+                        <p class="text-neutral-600">개인정보 처리방침</p>
+                        <span class="text-primary-400">→</span>
+                    </div>
+                    <div class="flex justify-between items-center py-2">
+                        <p class="text-neutral-600">이용약관</p>
+                        <span class="text-primary-400">→</span>
+                    </div>
+                    <div class="flex justify-between items-center py-2">
+                        <p class="text-neutral-600">오픈소스 라이선스</p>
+                        <span class="text-primary-400">→</span>
+                    </div>
+                </div>
+            </section>
+
+            <!-- 로그아웃/탈퇴 -->
+            <div class="space-y-3">
+                <button onclick="logout()"
+                    class="w-full py-4 bg-neutral-100 text-neutral-700 rounded-xl font-semibold hover:bg-neutral-200 transition">
+                    🚪 로그아웃
+                </button>
+                <button onclick="confirmDeleteAccount()" class="w-full py-3 text-danger text-sm hover:underline">
+                    회원 탈퇴
+                </button>
+            </div>
+        </main>
+
+        <!-- ============================================= -->
+        <!-- AI 의사 보고서 플로팅 버튼 -->
+        <!-- ============================================= -->
+        <button id="floating-report-btn"
+            class="fixed bottom-24 right-6 w-14 h-14 bg-gradient-to-br from-primary-400 to-primary-500 text-white rounded-full shadow-floating floating-btn flex items-center justify-center z-50 hover:scale-110 transition-transform hidden"
+            onclick="generateAIReport()">
+            <span class="text-2xl">📄</span>
+        </button>
+
+        <!-- ============================================= -->
+        <!-- 더보기 메뉴 오버레이 -->
+        <!-- ============================================= -->
+        <div id="moreMenuOverlay" class="fixed inset-0 bg-black/50 z-50 hidden" onclick="closeMoreMenu()"></div>
+        <div id="moreMenu"
+            class="fixed bottom-16 left-0 right-0 bg-white rounded-t-3xl shadow-2xl z-50 transform translate-y-full transition-transform duration-300 ease-out">
+            <div class="max-w-md mx-auto p-5">
+                <!-- 드래그 핸들 -->
+                <div class="w-12 h-1 bg-neutral-300 rounded-full mx-auto mb-4"></div>
+                <h3 class="font-bold text-lg mb-4 text-center">더보기</h3>
+
+                <!-- 메뉴 그리드 -->
+                <div class="grid grid-cols-3 gap-4">
+                    <button onclick="selectMoreMenu('connect')"
+                        class="flex flex-col items-center p-4 bg-gradient-to-br from-secondary-50 to-primary-50 rounded-2xl hover:shadow-lg transition">
+                        <span class="text-3xl">💜</span>
+                        <span class="text-sm font-medium mt-2">호프-커넥터</span>
+                        <span class="text-[10px] text-neutral-500">가족 커뮤니티</span>
+                    </button>
+                    <button onclick="selectMoreMenu('research')"
+                        class="flex flex-col items-center p-4 bg-gradient-to-br from-accent-50 to-secondary-50 rounded-2xl hover:shadow-lg transition">
+                        <span class="text-3xl">🔬</span>
+                        <span class="text-sm font-medium mt-2">연구 소식</span>
+                        <span class="text-[10px] text-neutral-500">글로벌 브리핑</span>
+                    </button>
+                    <!-- 취소분 레이더 - 추후 추가 예정 -->
+                    <!-- 새로 추가: 의료 기록 해석 -->
+                    <button onclick="selectMoreMenu('medical-record')"
+                        class="flex flex-col items-center p-4 bg-gradient-to-br from-blue-50 to-accent-50 rounded-2xl hover:shadow-lg transition">
+                        <span class="text-3xl">📋</span>
+                        <span class="text-sm font-medium mt-2">기록지 해석</span>
+                        <span class="text-[10px] text-neutral-500">사진으로 해석</span>
+                    </button>
+                    <!-- 새로 추가: 의료 용어 사전 -->
+                    <button onclick="selectMoreMenu('medical-terms')"
+                        class="flex flex-col items-center p-4 bg-gradient-to-br from-purple-50 to-secondary-50 rounded-2xl hover:shadow-lg transition">
+                        <span class="text-3xl">📖</span>
+                        <span class="text-sm font-medium mt-2">의료 용어</span>
+                        <span class="text-[10px] text-neutral-500">쉬운 해석</span>
+                    </button>
+                    <button onclick="selectMoreMenu('admin')"
+                        class="flex flex-col items-center p-4 bg-gradient-to-br from-neutral-100 to-primary-50 rounded-2xl hover:shadow-lg transition">
+                        <span class="text-3xl">📝</span>
+                        <span class="text-sm font-medium mt-2">서류 자동화</span>
+                        <span class="text-[10px] text-neutral-500">지원금 신청</span>
+                    </button>
+                    <button onclick="selectMoreMenu('calendar')"
+                        class="flex flex-col items-center p-4 bg-gradient-to-br from-primary-50 to-accent-50 rounded-2xl hover:shadow-lg transition">
+                        <span class="text-3xl">📆</span>
+                        <span class="text-sm font-medium mt-2">캘린더 동기화</span>
+                        <span class="text-[10px] text-neutral-500">구글 연동</span>
+                    </button>
+                    <button onclick="selectMoreMenu('settings')"
+                        class="flex flex-col items-center p-4 bg-gradient-to-br from-neutral-50 to-neutral-100 rounded-2xl hover:shadow-lg transition">
+                        <span class="text-3xl">⚙️</span>
+                        <span class="text-sm font-medium mt-2">설정</span>
+                        <span class="text-[10px] text-neutral-500">앱 설정</span>
+                    </button>
+                    <button onclick="logout()"
+                        class="flex flex-col items-center p-4 bg-gradient-to-br from-danger-light to-neutral-50 rounded-2xl hover:shadow-lg transition">
+                        <span class="text-3xl">🚪</span>
+                        <span class="text-sm font-medium mt-2">로그아웃</span>
+                        <span class="text-[10px] text-neutral-500">계정 변경</span>
+                    </button>
+                </div>
+
+                <!-- 닫기 버튼 -->
+                <button onclick="closeMoreMenu()"
+                    class="w-full mt-5 py-3 bg-neutral-100 text-neutral-600 rounded-xl font-medium hover:bg-neutral-200 transition">
+                    닫기
+                </button>
+            </div>
+        </div>
+
+        <!-- ============================================= -->
+        <!-- 하단 네비게이션 -->
+        <!-- ============================================= -->
+        <nav class="fixed bottom-0 left-0 right-0 bg-white border-t border-neutral-100 safe-area-bottom z-40">
+            <div class="max-w-md mx-auto flex justify-around py-2">
+                <button onclick="showTab('home')" class="flex flex-col items-center px-4 py-1 tab-btn tab-active"
+                    data-tab="home">
+                    <span class="text-xl">🏠</span>
+                    <span class="text-xs mt-0.5">홈</span>
+                </button>
+                <button onclick="showTab('diary')" class="flex flex-col items-center px-4 py-1 tab-btn text-neutral-500"
+                    data-tab="diary">
+                    <span class="text-xl">📒</span>
+                    <span class="text-xs mt-0.5">일기</span>
+                </button>
+                <button onclick="showTab('plan')" class="flex flex-col items-center px-4 py-1 tab-btn text-neutral-500"
+                    data-tab="plan">
+                    <span class="text-xl">🗓️</span>
+                    <span class="text-xs mt-0.5">플랜</span>
+                </button>
+                <button onclick="showTab('aicare')"
+                    class="flex flex-col items-center px-4 py-1 tab-btn text-neutral-500" data-tab="aicare">
+                    <span class="text-xl">🤖</span>
+                    <span class="text-xs mt-0.5">AI케어</span>
+                </button>
+                <button onclick="toggleMoreMenu()" class="flex flex-col items-center px-4 py-1 tab-btn text-neutral-500"
+                    id="moreTabBtn">
+                    <span class="text-xl">⋯</span>
+                    <span class="text-xs mt-0.5">더보기</span>
+                </button>
+            </div>
+        </nav>
+
+    </div>
+
+    <!-- JavaScript -->
+    <script>
+        // ========================================
+        // API 설정 (모바일 네트워크 대응)
+        // ========================================
+        // 현재 호스트에 따라 자동 설정 (같은 네트워크 내 모바일 접속 지원)
+        const API_BASE = (() => {
+            const host = window.location.hostname;
+            // file:// 프로토콜이면 로컬 서버 사용
+            if (window.location.protocol === 'file:') {
+                return 'http://192.168.200.102:8000';  // 실제 로컬 IP로 변경됨
+            }
+            // localhost면 그대로 사용
+            if (host === 'localhost' || host === '127.0.0.1') {
+                return 'http://localhost:8000';
+            }
+            // 그 외 (모바일 등)은 현재 호스트 사용
+            return `http://${host}:8000`;
+        })();
+        console.log('🌐 API 서버:', API_BASE);
+
+        let currentEmail = '';
+        let currentCode = '';
+        let currentUser = null;
+
+        // ========================================
+        // 로그인 함수들
+        // ========================================
+
+        // 이메일 유효성 검사
+        function validateEmail() {
+            const email = document.getElementById('login-email').value;
+            const btn = document.getElementById('send-code-btn');
+            const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+            if (emailRegex.test(email)) {
+                btn.disabled = false;
+            } else {
+                btn.disabled = true;
+            }
+        }
+
+        // 인증 코드 발송
+        async function sendVerificationCode() {
+            const email = document.getElementById('login-email').value;
+            const btn = document.getElementById('send-code-btn');
+            const errorEl = document.getElementById('email-error');
+
+            btn.textContent = '발송 중...';
+            btn.disabled = true;
+            errorEl.classList.add('hidden');
+
+            try {
+                const response = await fetch(`${API_BASE}/api/auth/send-code`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ email })
+                });
+
+                const data = await response.json();
+
+                if (data.success) {
+                    currentEmail = email;
+                    currentCode = data.test_mode_code; // 테스트 모드에서만 사용
+
+                    // 2단계로 이동
+                    document.getElementById('step-email').classList.add('hidden');
+                    document.getElementById('step-code').classList.remove('hidden');
+                    document.getElementById('code-sent-msg').innerHTML =
+                        `<strong>${email}</strong>로 인증 코드를 보냈습니다.<br>` +
+                        `<span class="text-primary-500 font-bold">테스트 코드: ${currentCode}</span>`;
+                    document.getElementById('code-1').focus();
+                } else {
+                    throw new Error(data.message || '발송 실패');
+                }
+            } catch (error) {
+                errorEl.textContent = '인증 코드 발송에 실패했습니다. 서버 연결을 확인하세요.';
+                errorEl.classList.remove('hidden');
+            } finally {
+                btn.textContent = '인증 코드 받기';
+                btn.disabled = false;
+            }
+        }
+
+        // 코드 입력 시 다음 칸으로 이동
+        function moveToNext(current, nextId) {
+            if (current.value.length >= 1) {
+                const next = document.getElementById(nextId);
+                if (next) next.focus();
+            }
+        }
+
+        // 코드 6자리 입력 완료 시 자동 확인
+        function verifyCodeAuto() {
+            const code6 = document.getElementById('code-6').value;
+            if (code6.length === 1) {
+                verifyCode();
+            }
+        }
+
+        // 인증 코드 확인
+        async function verifyCode() {
+            const code = ['code-1', 'code-2', 'code-3', 'code-4', 'code-5', 'code-6']
+                .map(id => document.getElementById(id).value)
+                .join('');
+
+            const errorEl = document.getElementById('code-error');
+            const btn = document.getElementById('verify-btn');
+
+            if (code.length !== 6) {
+                errorEl.textContent = '6자리 코드를 모두 입력해주세요.';
+                errorEl.classList.remove('hidden');
+                return;
+            }
+
+            btn.textContent = '확인 중...';
+            btn.disabled = true;
+            errorEl.classList.add('hidden');
+
+            try {
+                const response = await fetch(`${API_BASE}/api/auth/verify-code`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ email: currentEmail, code })
+                });
+
+                const data = await response.json();
+
+                if (data.success) {
+                    if (data.is_new_user) {
+                        // 신규 사용자 - 프로필 설정으로
+                        document.getElementById('step-code').classList.add('hidden');
+                        document.getElementById('step-profile').classList.remove('hidden');
+                        document.getElementById('profile-name').focus();
+                    } else {
+                        // 기존 사용자 - 바로 로그인
+                        currentUser = data.user;
+                        localStorage.setItem('hopelink_token', data.access_token);
+                        localStorage.setItem('hopelink_user', JSON.stringify(data.user));
+                        completeLogin();
+                    }
+                } else {
+                    throw new Error(data.message || '인증 실패');
+                }
+            } catch (error) {
+                errorEl.textContent = error.message || '인증에 실패했습니다.';
+                errorEl.classList.remove('hidden');
+            } finally {
+                btn.textContent = '확인';
+                btn.disabled = false;
+            }
+        }
+
+        // 프로필 설정 완료
+        async function setupProfile() {
+            const name = document.getElementById('profile-name').value.trim();
+
+            if (!name) {
+                alert('이름을 입력해주세요.');
+                return;
+            }
+
+            try {
+                const response = await fetch(`${API_BASE}/api/auth/setup-profile`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ email: currentEmail, name })
+                });
+
+                const data = await response.json();
+
+                if (data.user) {
+                    currentUser = data.user;
+                    localStorage.setItem('hopelink_token', data.access_token);
+                    localStorage.setItem('hopelink_user', JSON.stringify(data.user));
+                    completeLogin();
+                }
+            } catch (error) {
+                alert('프로필 설정에 실패했습니다.');
+            }
+        }
+
+        // 이메일 단계로 돌아가기
+        function backToEmail() {
+            document.getElementById('step-code').classList.add('hidden');
+            document.getElementById('step-email').classList.remove('hidden');
+            // 코드 입력창 초기화
+            ['code-1', 'code-2', 'code-3', 'code-4', 'code-5', 'code-6'].forEach(id => {
+                document.getElementById(id).value = '';
+            });
+        }
+
+        // 로그인 완료
+        function completeLogin() {
+            document.getElementById('login-screen').classList.add('hidden');
+            document.getElementById('app').classList.remove('hidden');
+            showTab('home');
+        }
+
+        // 로그아웃
+        function logout() {
+            localStorage.removeItem('hopelink_token');
+            localStorage.removeItem('hopelink_user');
+            currentUser = null;
+            document.getElementById('app').classList.add('hidden');
+            document.getElementById('login-screen').classList.remove('hidden');
+            // 로그인 폼 초기화
+            document.getElementById('step-email').classList.remove('hidden');
+            document.getElementById('step-code').classList.add('hidden');
+            document.getElementById('step-profile').classList.add('hidden');
+            document.getElementById('login-email').value = '';
+        }
+
+        // 페이지 로드 시 로그인 상태 확인
+        function checkLoginStatus() {
+            const token = localStorage.getItem('hopelink_token');
+            const user = localStorage.getItem('hopelink_user');
+
+            if (token && user) {
+                currentUser = JSON.parse(user);
+                completeLogin();
+            }
+        }
+
+        // 페이지 로드 시 실행
+        document.addEventListener('DOMContentLoaded', checkLoginStatus);
+
+        // ========================================
+        // 탭 네비게이션
+        // ========================================
+
+        // 탭 이름 매핑
+        const tabNames = {
+            'home': '홈',
+            'diary': '📒 관찰 일기',
+            'plan': '🗓️ 케어 플랜',
+            'connect': '💜 호프-커넥터',
+            'aicare': '🤖 AI 케어 파트너',
+            'research': '🔬 연구 소식',
+            'radar': '📡 취소분 레이더',
+            'medical-record': '📋 기록지 해석',
+            'medical-terms': '📖 의료 용어',
+            'admin': '📝 서류 자동화',
+            'calendar': '📆 캘린더 동기화',
+            'settings': '⚙️ 설정'
+        };
+
+        // 탭 히스토리 (뒤로가기용)
+        let tabHistory = ['home'];
+        let currentTab = 'home';
+
+        // 탭 전환 함수
+        function showTab(tabName) {
+            // 히스토리에 현재 탭 추가 (같은 탭이 아닐 때만)
+            if (currentTab !== tabName && tabName !== 'home') {
+                if (tabHistory[tabHistory.length - 1] !== currentTab) {
+                    tabHistory.push(currentTab);
+                }
+            }
+            if (tabName === 'home') {
+                tabHistory = ['home'];
+            }
+            currentTab = tabName;
+
+            // 모든 탭 콘텐츠 숨기기
+            document.querySelectorAll('main[id$="-tab"]').forEach(tab => {
+                tab.classList.add('hidden');
+            });
+
+            // 선택된 탭 표시
+            const selectedTab = document.getElementById(`${tabName}-tab`);
+            if (selectedTab) {
+                selectedTab.classList.remove('hidden');
+            }
+
+            // 네비게이션 활성화 상태 업데이트
+            document.querySelectorAll('.tab-btn').forEach(btn => {
+                btn.classList.remove('tab-active');
+                btn.classList.add('text-neutral-500');
+            });
+
+            const activeBtn = document.querySelector(`[data-tab="${tabName}"]`);
+            if (activeBtn) {
+                activeBtn.classList.add('tab-active');
+                activeBtn.classList.remove('text-neutral-500');
+            }
+
+            // 일기 탭에서만 플로팅 버튼 표시
+            const floatingBtn = document.getElementById('floating-report-btn');
+            if (tabName === 'diary') {
+                floatingBtn.classList.remove('hidden');
+            } else {
+                floatingBtn.classList.add('hidden');
+            }
+
+            // 헤더 상태 업데이트
+            updateHeader(tabName);
+        }
+
+        // 헤더 상태 업데이트
+        function updateHeader(tabName) {
+            const backBtn = document.getElementById('backBtn');
+            const homeBtn = document.getElementById('homeBtn');
+            const headerTitle = document.getElementById('headerTitle');
+            const subpageTitle = document.getElementById('subpageTitle');
+            const currentTabName = document.getElementById('currentTabName');
+
+            if (tabName === 'home') {
+                // 홈일 때: 로고 표시, 뒤로가기/홈 버튼 숨김
+                backBtn.classList.add('hidden');
+                homeBtn.classList.add('hidden');
+                headerTitle.classList.remove('hidden');
+                subpageTitle.classList.add('hidden');
+            } else {
+                // 서브페이지일 때: 뒤로가기 + 현재 탭 이름 + 홈 버튼
+                backBtn.classList.remove('hidden');
+                homeBtn.classList.remove('hidden');
+                headerTitle.classList.add('hidden');
+                subpageTitle.classList.remove('hidden');
+                currentTabName.textContent = tabNames[tabName] || tabName;
+            }
+        }
+
+        // 뒤로가기
+        function goBack() {
+            if (tabHistory.length > 1) {
+                tabHistory.pop(); // 현재 탭 제거
+                const previousTab = tabHistory[tabHistory.length - 1];
+                showTab(previousTab);
+            } else {
+                showTab('home');
+            }
+        }
+
+        // AI 의사 보고서 생성
+        function generateAIReport() {
+            alert('🤖 AI 의사 보고서를 생성하고 있습니다...\n\n최근 7일간의 관찰 일기를 분석하여 전문의 진료 시 활용 가능한 PDF 리포트를 생성합니다.');
+        }
+
+        // ========================================
+        // 더보기 메뉴 기능
+        // ========================================
+
+        // 더보기 메뉴 토글
+        function toggleMoreMenu() {
+            const overlay = document.getElementById('moreMenuOverlay');
+            const menu = document.getElementById('moreMenu');
+
+            if (menu.classList.contains('translate-y-full')) {
+                // 메뉴 열기
+                overlay.classList.remove('hidden');
+                setTimeout(() => {
+                    menu.classList.remove('translate-y-full');
+                    menu.classList.add('translate-y-0');
+                }, 10);
+            } else {
+                closeMoreMenu();
+            }
+        }
+
+        // 더보기 메뉴 닫기
+        function closeMoreMenu() {
+            const overlay = document.getElementById('moreMenuOverlay');
+            const menu = document.getElementById('moreMenu');
+
+            menu.classList.remove('translate-y-0');
+            menu.classList.add('translate-y-full');
+            setTimeout(() => {
+                overlay.classList.add('hidden');
+            }, 300);
+        }
+
+        // 더보기 메뉴에서 선택
+        function selectMoreMenu(tabName) {
+            closeMoreMenu();
+
+            // 모든 탭으로 이동
+            setTimeout(() => {
+                showTab(tabName);
+            }, 350);
+        }
+
+        // ========================================
+        // 의료 기록 해석 기능
+        // ========================================
+
+        // 이미지 업로드 처리
+        function handleImageUpload(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+
+            const reader = new FileReader();
+            reader.onload = function (e) {
+                // 미리보기 표시
+                document.getElementById('upload-preview').classList.remove('hidden');
+                document.getElementById('upload-placeholder').classList.add('hidden');
+                document.getElementById('preview-image').src = e.target.result;
+
+                // AI 해석 시작
+                interpretMedicalRecord(e.target.result);
+            };
+            reader.readAsDataURL(file);
+        }
+
+        // 의료 기록 AI 해석
+        async function interpretMedicalRecord(imageData) {
+            const resultSection = document.getElementById('interpretation-result');
+            const resultContent = document.getElementById('interpretation-content');
+
+            resultSection.classList.remove('hidden');
+            resultContent.innerHTML = `
+                <div class="text-center py-8">
+                    <div class="w-16 h-16 border-4 border-primary-300 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+                    <p class="text-neutral-600">AI가 문서를 분석하고 있어요...</p>
+                </div>
+            `;
+
+            // 시뮬레이션 대기 (실제로는 API 호출)
+            await new Promise(resolve => setTimeout(resolve, 2000));
+
+            // 예시 해석 결과 표시
+            resultContent.innerHTML = `
+                <div class="bg-blue-50 rounded-xl p-4 mb-4">
+                    <h4 class="font-semibold text-blue-700 mb-2">📄 문서 유형</h4>
+                    <p class="text-sm">뇌파 검사(EEG) 결과지</p>
+                </div>
+
+                <div class="bg-accent-50 rounded-xl p-4 mb-4">
+                    <h4 class="font-semibold text-accent-500 mb-2">🔍 주요 내용 요약</h4>
+                    <ul class="text-sm space-y-2">
+                        <li>• <strong>Hypsarrhythmia 패턴</strong>: 고진폭 부정맥이 관찰됨 (영아연축의 특징적 소견)</li>
+                        <li>• <strong>배경 활동</strong>: 약간 느려진 배경 활동</li>
+                        <li>• <strong>발작파</strong>: 산발적인 극파(spike)가 관찰됨</li>
+                    </ul>
+                </div>
+
+                <div class="bg-primary-50 rounded-xl p-4 mb-4">
+                    <h4 class="font-semibold text-primary-500 mb-2">💡 쉬운 설명</h4>
+                    <p class="text-sm text-neutral-700">
+                        이 검사 결과는 <strong>웨스트 증후군(영아연축)</strong>의 전형적인 뇌파 패턴을 보여주고 있어요. 
+                        "Hypsarrhythmia"는 뇌파가 불규칙하고 높은 파형을 보이는 것을 말해요. 
+                        치료를 통해 이 패턴이 호전되는지 추적 관찰이 필요합니다.
+                    </p>
+                </div>
+
+                <div class="bg-warning-light rounded-xl p-4">
+                    <h4 class="font-semibold text-warning mb-2">⚠️ 주치의 상담 포인트</h4>
+                    <ul class="text-sm space-y-1">
+                        <li>• ACTH 또는 비가바트린 치료 경과 확인</li>
+                        <li>• 다음 뇌파 검사 일정 문의</li>
+                        <li>• 연축 빈도 변화 공유</li>
+                    </ul>
+                </div>
+            `;
+        }
+
+        // ========================================
+        // 의료 용어 사전 기능
+        // ========================================
+
+        const medicalTerms = {
+            'EEG': {
+                korean: '뇌파 검사',
+                definition: '뇌에서 발생하는 전기 신호를 두피에 부착한 전극을 통해 기록하는 검사예요.',
+                detail: '발작 유형 진단, 뇌 기능 평가, 수면 상태 분석 등에 사용됩니다. 통증 없이 약 30분~1시간 진행되며, 아이가 잠들면 더 정확한 결과를 얻을 수 있어요.',
+                related: ['뇌파', 'Hypsarrhythmia', '발작']
+            },
+            'MRI': {
+                korean: '자기공명영상',
+                definition: '강력한 자기장을 이용해 뇌와 신체 내부 구조를 상세하게 촬영하는 검사예요.',
+                detail: '방사선을 사용하지 않아 안전하며, 뇌의 구조적 이상을 확인하는 데 매우 유용해요. 검사 중 큰 소리가 나므로 아이가 놀랄 수 있어요.',
+                related: ['CT', '뇌 영상', '조영제']
+            },
+            'Spasm': {
+                korean: '연축',
+                definition: '근육이 갑자기 수축하는 증상으로, 영아연축에서 특징적으로 나타나요.',
+                detail: '보통 몸을 앞으로 숙이거나 팔다리를 갑자기 펴는 동작으로 나타나며, 수초간 지속돼요. 하루에 여러 차례, 특히 기상 직후에 많이 발생합니다.',
+                related: ['영아연축', '발작', '웨스트 증후군']
+            },
+            'Hypsarrhythmia': {
+                korean: '고진폭부정맥',
+                definition: '뇌파 검사에서 나타나는 특징적인 패턴으로, 웨스트 증후군 진단의 핵심 소견이에요.',
+                detail: '뇌파가 매우 불규칙하고 진폭이 높으며, 다양한 주파수의 파형이 혼재되어 나타나요. 치료를 통해 호전될 수 있습니다.',
+                related: ['EEG', '영아연축', 'ACTH']
+            },
+            'ACTH': {
+                korean: '부신피질자극호르몬',
+                definition: '영아연축 치료에 사용되는 호르몬 주사 치료제예요.',
+                detail: '뇌하수체에서 분비되는 호르몬으로, 연축을 억제하는 효과가 있어요. 2~6주간 매일 주사하며, 부작용 관찰이 중요합니다.',
+                related: ['비가바트린', '영아연축', '스테로이드']
+            },
+            '비가바트린': {
+                korean: 'Vigabatrin',
+                definition: '영아연축 치료에 1차로 사용되는 항경련제예요.',
+                detail: '경구 복용 약물로, ACTH와 함께 영아연축 치료의 주요 약물이에요. 시야 손상 위험이 있어 정기적인 안과 검사가 필요합니다.',
+                related: ['ACTH', '항경련제', '부작용']
+            }
+        };
+
+        // 의료 용어 검색
+        function searchMedicalTerm(query) {
+            const resultSection = document.getElementById('term-result');
+            const resultContent = document.getElementById('term-result-content');
+
+            if (!query || query.length < 2) {
+                resultSection.classList.add('hidden');
+                return;
+            }
+
+            const lowerQuery = query.toLowerCase();
+            const matches = Object.entries(medicalTerms).filter(([key, value]) =>
+                key.toLowerCase().includes(lowerQuery) ||
+                value.korean.includes(query) ||
+                value.definition.includes(query)
+            );
+
+            if (matches.length > 0) {
+                resultSection.classList.remove('hidden');
+                resultContent.innerHTML = matches.map(([term, data]) => `
+                    <button onclick="showTermDefinition('${term}')" class="w-full text-left bg-purple-50 rounded-xl p-4 mb-3 hover:bg-purple-100 transition">
+                        <p class="font-semibold text-purple-700">${term} (${data.korean})</p>
+                        <p class="text-sm text-neutral-600 mt-1">${data.definition}</p>
+                    </button>
+                `).join('');
+            } else {
+                resultSection.classList.remove('hidden');
+                resultContent.innerHTML = `
+                    <div class="text-center py-6">
+                        <span class="text-4xl mb-2 block">🔍</span>
+                        <p class="text-neutral-500">"${query}"에 대한 결과가 없어요</p>
+                        <p class="text-sm text-neutral-400 mt-1">다른 용어로 검색해 보세요</p>
+                    </div>
+                `;
+            }
+        }
+
+        // 용어 상세 정보 표시
+        function showTermDefinition(term) {
+            const data = medicalTerms[term];
+            if (!data) return;
+
+            const resultSection = document.getElementById('term-result');
+            const resultContent = document.getElementById('term-result-content');
+
+            resultSection.classList.remove('hidden');
+            resultContent.innerHTML = `
+                <div class="bg-purple-100 rounded-xl p-4 mb-4">
+                    <h3 class="text-xl font-bold text-purple-800">${term}</h3>
+                    <p class="text-purple-600">${data.korean}</p>
+                </div>
+
+                <div class="bg-white border border-purple-100 rounded-xl p-4 mb-4">
+                    <h4 class="font-semibold text-neutral-700 mb-2">📝 정의</h4>
+                    <p class="text-sm text-neutral-600">${data.definition}</p>
+                </div>
+
+                <div class="bg-accent-50 rounded-xl p-4 mb-4">
+                    <h4 class="font-semibold text-accent-500 mb-2">💡 자세한 설명</h4>
+                    <p class="text-sm text-neutral-700">${data.detail}</p>
+                </div>
+
+                <div class="bg-neutral-50 rounded-xl p-4">
+                    <h4 class="font-semibold text-neutral-600 mb-2">🔗 관련 용어</h4>
+                    <div class="flex flex-wrap gap-2">
+                        ${data.related.map(r => `<span class="px-3 py-1 bg-white rounded-full text-sm text-purple-600 border border-purple-200">${r}</span>`).join('')}
+                    </div>
+                </div>
+            `;
+        }
+
+        // 카테고리별 용어 표시
+        function showCategory(category) {
+            alert(`📚 ${category} 관련 용어\n\n이 카테고리의 용어 목록을 준비 중이에요!`);
+        }
+
+        // ========================================
+        // 캘린더 기능
+        // ========================================
+
+        let currentCalendarDate = new Date(2026, 0, 1); // 2026년 1월
+
+        // 일정 데이터 (날짜별)
+        const scheduleData = {
+            '2026-01-06': [{ type: 'primary', label: '오늘' }],
+            '2026-01-10': [{ type: 'warning', label: '진료+재활 충돌' }, { type: 'secondary', label: '언어치료' }],
+            '2026-01-15': [{ type: 'primary', label: '서울대병원' }],
+            '2026-01-20': [{ type: 'accent', label: '재활치료' }],
+            '2026-01-22': [{ type: 'secondary', label: '언어치료' }]
+        };
+
+        // 캘린더 렌더링
+        function renderCalendar() {
+            const grid = document.getElementById('calendarGrid');
+            const monthLabel = document.getElementById('calendarMonth');
+            if (!grid || !monthLabel) return;
+
+            const year = currentCalendarDate.getFullYear();
+            const month = currentCalendarDate.getMonth();
+
+            monthLabel.textContent = `${year}년 ${month + 1}월`;
+
+            // 첫째 날과 마지막 날
+            const firstDay = new Date(year, month, 1);
+            const lastDay = new Date(year, month + 1, 0);
+            const startDay = firstDay.getDay();
+            const totalDays = lastDay.getDate();
+
+            grid.innerHTML = '';
+
+            // 빈 칸 (이전 달)
+            for (let i = 0; i < startDay; i++) {
+                grid.innerHTML += '<div class="h-8"></div>';
+            }
+
+            // 날짜들
+            const today = new Date();
+            for (let day = 1; day <= totalDays; day++) {
+                const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+                const hasSchedule = scheduleData[dateStr];
+                const isToday = (year === today.getFullYear() && month === today.getMonth() && day === today.getDate());
+
+                let bgClass = 'hover:bg-neutral-100';
+                let dotHtml = '';
+
+                if (isToday) {
+                    bgClass = 'bg-primary text-white';
+                } else if (hasSchedule) {
+                    const types = hasSchedule.map(s => s.type);
+                    if (types.includes('warning')) {
+                        bgClass = 'bg-warning-light text-warning-dark';
+                    } else if (types.includes('primary')) {
+                        bgClass = 'bg-primary-100 text-primary-500';
+                    } else if (types.includes('accent')) {
+                        bgClass = 'bg-accent-100 text-accent-400';
+                    }
+                    dotHtml = '<div class="absolute bottom-0.5 left-1/2 -translate-x-1/2 flex gap-0.5">';
+                    hasSchedule.forEach(s => {
+                        dotHtml += `<span class="w-1 h-1 rounded-full bg-${s.type}"></span>`;
+                    });
+                    dotHtml += '</div>';
+                }
+
+                grid.innerHTML += `
+                    <div class="relative h-8 flex items-center justify-center rounded-lg cursor-pointer transition ${bgClass}" onclick="selectDate('${dateStr}')">
+                        ${day}
+                        ${dotHtml}
+                    </div>
+                `;
+            }
+        }
+
+        // 월 변경
+        function changeMonth(delta) {
+            currentCalendarDate.setMonth(currentCalendarDate.getMonth() + delta);
+            renderCalendar();
+        }
+
+        // 날짜 선택
+        function selectDate(dateStr) {
+            const schedule = scheduleData[dateStr];
+            if (schedule) {
+                const labels = schedule.map(s => s.label).join(', ');
+                alert(`📅 ${dateStr}\n\n일정: ${labels}`);
+            } else {
+                if (confirm(`📅 ${dateStr}\n\n일정이 없습니다. 새 일정을 추가하시겠습니까?`)) {
+                    addNewSchedule();
+                }
+            }
+        }
+
+        // 구글 캘린더에 일정 추가
+        function addToCalendar(title, startTime, endTime) {
+            // 구글 캘린더 URL 형식으로 변환
+            const start = startTime.replace(/-|:/g, '').replace('T', 'T');
+            const end = endTime.replace(/-|:/g, '').replace('T', 'T');
+            const googleUrl = `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${encodeURIComponent(title)}&dates=${start.replace('T', 'T').replace(/-|:/g, '')}/${end.replace('T', 'T').replace(/-|:/g, '')}`;
+
+            // 모바일에서는 캘린더 앱으로 연결 시도
+            if (confirm(`📅 "${title}" 일정을 캘린더에 추가하시겠습니까?\n\n${startTime.split('T')[0]} ${startTime.split('T')[1]} ~ ${endTime.split('T')[1]}`)) {
+                window.open(googleUrl, '_blank');
+                alert('✅ 구글 캘린더가 열렸습니다!\n브라우저에서 일정을 저장해주세요.');
+            }
+        }
+
+        // 새 일정 추가
+        function addNewSchedule() {
+            const title = prompt('📝 일정 제목을 입력하세요:');
+            if (title) {
+                alert(`✅ "${title}" 일정이 추가되었습니다!\n\n구글 캘린더에도 자동 동기화됩니다.`);
+            }
+        }
+
+        // 아이 정보 저장
+        function saveChildInfo() {
+            const name = document.getElementById('childName').value;
+            const birthDate = document.getElementById('birthDate').value;
+            const diagnosis = document.getElementById('diagnosis').value;
+            const residence = document.getElementById('residence').value;
+
+            if (!name || !birthDate || !diagnosis || !residence) {
+                alert('모든 필수 정보를 입력해주세요.');
+                return;
+            }
+
+            // 나이 계산
+            const today = new Date();
+            const birth = new Date(birthDate);
+            let age = today.getFullYear() - birth.getFullYear();
+            const monthDiff = today.getMonth() - birth.getMonth();
+            if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birth.getDate())) {
+                age--;
+            }
+
+            // 개월 수 계산 (만 3세 미만)
+            let ageText = '';
+            if (age < 3) {
+                const months = (today.getFullYear() - birth.getFullYear()) * 12 + (today.getMonth() - birth.getMonth());
+                ageText = `만 ${months}개월`;
+            } else {
+                ageText = `만 ${age}세`;
+            }
+
+            // UI 업데이트
+            document.getElementById('ageDisplay').textContent = `📅 ${ageText}`;
+            document.getElementById('childNameDisplay').textContent = `${name}의 오늘`;
+            document.getElementById('rehabLocationText').textContent = `거주지역: ${residence} 기준`;
+
+            // 로컬 스토리지에 저장
+            localStorage.setItem('hopelink_child', JSON.stringify({
+                name, birthDate, diagnosis, residence, age: ageText
+            }));
+
+            alert(`✅ ${name} 정보가 저장되었습니다!\n\n나이: ${ageText}\n진단명: ${diagnosis}\n거주지역: ${residence}`);
+        }
+
+        // 생년월일 변경 시 나이 자동 계산
+        document.getElementById('birthDate')?.addEventListener('change', function () {
+            const birthDate = new Date(this.value);
+            const today = new Date();
+            let age = today.getFullYear() - birthDate.getFullYear();
+            const monthDiff = today.getMonth() - birthDate.getMonth();
+            if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birthDate.getDate())) {
+                age--;
+            }
+
+            let ageText = '';
+            if (age < 3) {
+                const months = (today.getFullYear() - birthDate.getFullYear()) * 12 + (today.getMonth() - birthDate.getMonth());
+                ageText = `만 ${months}개월`;
+            } else {
+                ageText = `만 ${age}세`;
+            }
+
+            document.getElementById('ageDisplay').textContent = `📅 ${ageText}`;
+        });
+
+        // 저장된 정보 불러오기
+        function loadSavedChildInfo() {
+            const saved = localStorage.getItem('hopelink_child');
+            if (saved) {
+                const data = JSON.parse(saved);
+                document.getElementById('childName').value = data.name || '';
+                document.getElementById('birthDate').value = data.birthDate || '';
+                document.getElementById('diagnosis').value = data.diagnosis || '';
+                document.getElementById('residence').value = data.residence || '';
+                document.getElementById('ageDisplay').textContent = data.age ? `📅 ${data.age}` : '';
+                document.getElementById('childNameDisplay').textContent = `${data.name || '아이'}의 오늘`;
+                document.getElementById('rehabLocationText').textContent = `거주지역: ${data.residence || '서울특별시'} 기준`;
+            }
+        }
+
+        // ========================================
+        // 홈 화면 인터랙티브 기능
+        // ========================================
+
+        // 컨디션 변경
+        let currentConditionIndex = 0;
+        const conditions = [
+            { emoji: '💚', text: '좋음', color: 'text-success' },
+            { emoji: '💛', text: '보통', color: 'text-warning' },
+            { emoji: '🧡', text: '약간 불안', color: 'text-orange-500' },
+            { emoji: '❤️', text: '힘들어요', color: 'text-danger' },
+            { emoji: '💜', text: '많이 힘들어요', color: 'text-purple-500' }
+        ];
+
+        function changeCondition() {
+            currentConditionIndex = (currentConditionIndex + 1) % conditions.length;
+            const cond = conditions[currentConditionIndex];
+
+            document.getElementById('conditionEmoji').textContent = cond.emoji;
+            document.getElementById('conditionText').textContent = cond.text;
+            document.getElementById('conditionText').className = cond.color;
+
+            // 저장
+            localStorage.setItem('hopelink_condition', JSON.stringify({
+                index: currentConditionIndex,
+                date: new Date().toISOString().split('T')[0]
+            }));
+        }
+
+        // ========================================
+        // 약 복용 트래커 (다중 약물 지원)
+        // ========================================
+
+        // 약물 데이터 (로컬 스토리지에서 불러오기)
+        let medicines = JSON.parse(localStorage.getItem('hopelink_medicines') || '[]');
+
+        // 기본 약물이 없으면 샘플 추가
+        if (medicines.length === 0) {
+            medicines = [
+                { id: 1, name: '비가바트린', frequency: 2, taken: 0 },
+                { id: 2, name: 'ACTH 주사', frequency: 1, taken: 0 }
+            ];
+            saveMedicines();
+        }
+
+        // 약물 저장
+        function saveMedicines() {
+            localStorage.setItem('hopelink_medicines', JSON.stringify(medicines));
+            updateMedicineStatus();
+        }
+
+        // 상태 업데이트
+        function updateMedicineStatus() {
+            const totalRequired = medicines.reduce((sum, m) => sum + m.frequency, 0);
+            const totalTaken = medicines.reduce((sum, m) => sum + m.taken, 0);
+            const status = document.getElementById('medicineStatus');
+            if (status) {
+                status.textContent = `${totalTaken}/${totalRequired}`;
+                status.className = totalTaken >= totalRequired
+                    ? 'text-sm font-semibold text-success'
+                    : 'text-sm font-semibold text-warning';
+            }
+        }
+
+        // 약 복용 트래커 열기
+        function openMedicineTracker() {
+            // 모달 HTML 생성
+            const modalHtml = `
+                <div id="medicineModal" class="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onclick="if(event.target.id==='medicineModal')closeMedicineModal()">
+                    <div class="bg-white rounded-2xl w-full max-w-md max-h-[90vh] overflow-hidden" onclick="event.stopPropagation()">
+                        <div class="bg-gradient-to-r from-primary-100 to-accent-100 p-4">
+                            <h2 class="text-lg font-bold flex items-center gap-2">
+                                💊 약 복용 기록
+                            </h2>
+                            <p class="text-sm text-neutral-600 mt-1">약 종류와 복용 횟수를 관리하세요</p>
+                        </div>
+                        
+                        <div class="p-4 space-y-3 max-h-[50vh] overflow-y-auto" id="medicineList">
+                            ${medicines.map((med, i) => `
+                                <div class="bg-neutral-50 rounded-xl p-4">
+                                    <div class="flex justify-between items-start mb-3">
+                                        <div>
+                                            <p class="font-semibold">${med.name}</p>
+                                            <p class="text-xs text-neutral-500">하루 ${med.frequency}회</p>
+                                        </div>
+                                        <button onclick="removeMedicine(${med.id})" class="text-red-400 text-sm hover:text-red-600">삭제</button>
+                                    </div>
+                                    <div class="flex items-center gap-2">
+                                        <span class="text-sm text-neutral-500">복용:</span>
+                                        <div class="flex gap-1">
+                                            ${Array.from({ length: med.frequency }, (_, j) => `
+                                                <button onclick="toggleMedicineTaken(${med.id}, ${j + 1})" 
+                                                    class="w-10 h-10 rounded-full border-2 ${j < med.taken ? 'bg-success border-success text-white' : 'bg-white border-neutral-300 text-neutral-400'} font-bold transition hover:scale-110">
+                                                    ${j < med.taken ? '✓' : j + 1}
+                                                </button>
+                                            `).join('')}
+                                        </div>
+                                        <span class="ml-auto text-sm ${med.taken >= med.frequency ? 'text-success font-bold' : 'text-neutral-400'}">
+                                            ${med.taken >= med.frequency ? '완료!' : `${med.taken}/${med.frequency}`}
+                                        </span>
+                                    </div>
+                                </div>
+                            `).join('')}
+                        </div>
+                        
+                        <div class="p-4 border-t">
+                            <button onclick="showAddMedicineForm()" class="w-full py-3 border-2 border-dashed border-primary-300 text-primary-500 rounded-xl hover:bg-primary-50 transition">
+                                + 약 추가하기
+                            </button>
+                        </div>
+                        
+                        <div id="addMedicineForm" class="hidden p-4 bg-primary-50 border-t">
+                            <p class="font-semibold mb-3">새 약 추가</p>
+                            <div class="space-y-3">
+                                <input type="text" id="newMedName" placeholder="약 이름 (예: 비가바트린)" 
+                                    class="w-full px-4 py-3 border border-neutral-200 rounded-xl focus:ring-2 focus:ring-primary-300">
+                                <div class="flex gap-2 items-center">
+                                    <span class="text-sm text-neutral-600">하루</span>
+                                    <input type="number" id="newMedFreq" value="2" min="1" max="10" 
+                                        class="w-20 px-3 py-2 border border-neutral-200 rounded-xl text-center">
+                                    <span class="text-sm text-neutral-600">회</span>
+                                </div>
+                                <div class="flex gap-2">
+                                    <button onclick="addNewMedicine()" class="flex-1 py-2 bg-primary text-white rounded-xl font-semibold">추가</button>
+                                    <button onclick="hideAddMedicineForm()" class="flex-1 py-2 bg-neutral-200 rounded-xl">취소</button>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="p-4 border-t flex gap-2">
+                            <button onclick="resetTodayMedicines()" class="flex-1 py-3 bg-neutral-100 text-neutral-600 rounded-xl font-semibold hover:bg-neutral-200 transition">
+                                오늘 기록 초기화
+                            </button>
+                            <button onclick="closeMedicineModal()" class="flex-1 py-3 bg-primary text-white rounded-xl font-semibold hover:bg-primary-600 transition">
+                                확인
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            `;
+
+            // 기존 모달 제거 후 추가
+            document.getElementById('medicineModal')?.remove();
+            document.body.insertAdjacentHTML('beforeend', modalHtml);
+        }
+
+        // 약 복용 토글
+        function toggleMedicineTaken(medId, count) {
+            const med = medicines.find(m => m.id === medId);
+            if (med) {
+                med.taken = med.taken >= count ? count - 1 : count;
+                saveMedicines();
+                openMedicineTracker(); // 모달 새로고침
+            }
+        }
+
+        // 약 삭제
+        function removeMedicine(medId) {
+            if (confirm('이 약을 목록에서 삭제하시겠습니까?')) {
+                medicines = medicines.filter(m => m.id !== medId);
+                saveMedicines();
+                openMedicineTracker();
+            }
+        }
+
+        // 약 추가 폼 표시
+        function showAddMedicineForm() {
+            document.getElementById('addMedicineForm').classList.remove('hidden');
+        }
+
+        function hideAddMedicineForm() {
+            document.getElementById('addMedicineForm').classList.add('hidden');
+        }
+
+        // 새 약 추가
+        function addNewMedicine() {
+            const name = document.getElementById('newMedName').value.trim();
+            const freq = parseInt(document.getElementById('newMedFreq').value) || 2;
+
+            if (!name) {
+                alert('약 이름을 입력해주세요.');
+                return;
+            }
+
+            const newId = Math.max(...medicines.map(m => m.id), 0) + 1;
+            medicines.push({ id: newId, name, frequency: freq, taken: 0 });
+            saveMedicines();
+            openMedicineTracker();
+        }
+
+        // 오늘 기록 초기화
+        function resetTodayMedicines() {
+            if (confirm('오늘의 모든 복용 기록을 초기화하시겠습니까?')) {
+                medicines.forEach(m => m.taken = 0);
+                saveMedicines();
+                openMedicineTracker();
+            }
+        }
+
+        // 모달 닫기
+        function closeMedicineModal() {
+            document.getElementById('medicineModal')?.remove();
+        }
+
+        // 페이지 로드 시 상태 업데이트
+        updateMedicineStatus();
+
+        // 다음 진료 보기
+        function showNextAppointment() {
+            alert(
+                `🏥 다음 진료 일정\n\n` +
+                `📅 2026년 1월 10일 (금)\n` +
+                `⏰ 오전 10:30\n` +
+                `🏥 서울대학교병원 소아신경과\n` +
+                `👨‍⚕️ 김OO 교수님\n\n` +
+                `📋 준비물:\n` +
+                `• 관찰 일기 (최근 1주일)\n` +
+                `• 약 복용 기록\n` +
+                `• 발작 영상 (있는 경우)\n\n` +
+                `💡 팁: 플랜 탭에서 일정을 캘린더에 추가할 수 있어요!`
+            );
+        }
+
+        // 오늘의 미션 상세 보기
+        function showMissionDetail() {
+            alert(
+                `🎯 오늘의 미션: 시각 추적 놀이\n\n` +
+                `👶 대상 연령: 0-3세\n` +
+                `⏱️ 소요 시간: 5-10분\n\n` +
+                `📝 놀이 방법:\n\n` +
+                `1️⃣ 밝은 색 장난감이나 공을 준비해요\n` +
+                `2️⃣ 아이 눈앞 30cm 거리에서 천천히 좌우로 움직여요\n` +
+                `3️⃣ 아이가 눈으로 따라보는지 관찰해요\n` +
+                `4️⃣ 위아래로도 움직여보며 추적 범위를 넓혀요\n\n` +
+                `✨ 효과:\n` +
+                `• 시각 발달 촉진\n` +
+                `• 집중력 향상\n` +
+                `• 목 근육 강화\n\n` +
+                `💡 팁: 소리나는 장난감을 사용하면 더 효과적이에요!`
+            );
+        }
+
+        // 섹션 접기/펼치기 토글
+        function toggleSection(sectionId) {
+            const content = document.getElementById(`${sectionId}-content`);
+            const arrow = document.getElementById(`${sectionId}-arrow`);
+
+            if (content.classList.contains('hidden')) {
+                content.classList.remove('hidden');
+                arrow.style.transform = 'rotate(180deg)';
+            } else {
+                content.classList.add('hidden');
+                arrow.style.transform = 'rotate(0deg)';
+            }
+        }
+
+        // 증상 태그 토글
+        function toggleTag(btn) {
+            btn.classList.toggle('bg-primary-100');
+            btn.classList.toggle('border-primary');
+            btn.classList.toggle('text-primary-500');
+        }
+
+        // 컨디션 선택
+        let selectedCondition = null;
+        function selectCondition(btn, condition) {
+            // 이전 선택 해제
+            document.querySelectorAll('.condition-btn').forEach(b => {
+                b.classList.remove('ring-2', 'ring-primary', 'bg-primary-50');
+            });
+            // 새 선택
+            btn.classList.add('ring-2', 'ring-primary', 'bg-primary-50');
+            selectedCondition = condition;
+        }
+
+        // 미디어 업로드 처리
+        let uploadedMedia = [];
+        function handleMediaUpload(event, type) {
+            const files = event.target.files;
+            const container = document.getElementById('mediaPreviewContainer');
+
+            for (let file of files) {
+                if (uploadedMedia.length >= 6) {
+                    alert('최대 6개까지 첨부할 수 있습니다.');
+                    break;
+                }
+
+                const reader = new FileReader();
+                reader.onload = function (e) {
+                    const preview = document.createElement('div');
+                    preview.className = 'relative aspect-square bg-neutral-100 rounded-lg overflow-hidden';
+
+                    if (type === 'photo') {
+                        preview.innerHTML = `
+                            <img src="${e.target.result}" class="w-full h-full object-cover">
+                            <button onclick="removeMedia(this)" class="absolute top-1 right-1 w-5 h-5 bg-red-500 text-white rounded-full text-xs">×</button>
+                        `;
+                    } else {
+                        preview.innerHTML = `
+                            <div class="w-full h-full flex items-center justify-center bg-accent-100">
+                                <span class="text-2xl">🎥</span>
+                            </div>
+                            <button onclick="removeMedia(this)" class="absolute top-1 right-1 w-5 h-5 bg-red-500 text-white rounded-full text-xs">×</button>
+                        `;
+                    }
+
+                    container.appendChild(preview);
+                    uploadedMedia.push({ type, data: e.target.result, name: file.name });
+                };
+                reader.readAsDataURL(file);
+            }
+        }
+
+        // 미디어 삭제
+        function removeMedia(btn) {
+            const index = Array.from(btn.parentElement.parentElement.children).indexOf(btn.parentElement);
+            uploadedMedia.splice(index, 1);
+            btn.parentElement.remove();
+        }
+
+        // 일기 저장
+        function saveDiary() {
+            const date = document.getElementById('diaryDate').value;
+            const time = document.getElementById('diaryTime').value;
+            const content = document.getElementById('diaryContent').value;
+
+            // 선택된 태그 수집
+            const selectedTags = [];
+            document.querySelectorAll('.symptom-tag.bg-primary-100').forEach(tag => {
+                selectedTags.push(tag.textContent);
+            });
+
+            if (!content && uploadedMedia.length === 0) {
+                alert('내용을 입력하거나 사진/영상을 첨부해주세요.');
+                return;
+            }
+
+            const diary = {
+                id: Date.now(),
+                date: date || new Date().toISOString().split('T')[0],
+                time: time || new Date().toTimeString().slice(0, 5),
+                content,
+                tags: selectedTags,
+                condition: selectedCondition,
+                mediaCount: uploadedMedia.length,
+                createdAt: new Date().toISOString()
+            };
+
+            // 저장된 일기 목록 가져오기
+            let diaries = JSON.parse(localStorage.getItem('hopelink_diaries') || '[]');
+            diaries.unshift(diary);
+            localStorage.setItem('hopelink_diaries', JSON.stringify(diaries));
+
+            // 폼 초기화
+            document.getElementById('diaryDate').value = '';
+            document.getElementById('diaryTime').value = '';
+            document.getElementById('diaryContent').value = '';
+            document.querySelectorAll('.symptom-tag').forEach(tag => {
+                tag.classList.remove('bg-primary-100', 'border-primary', 'text-primary-500');
+            });
+            document.querySelectorAll('.condition-btn').forEach(btn => {
+                btn.classList.remove('ring-2', 'ring-primary', 'bg-primary-50');
+            });
+            document.getElementById('mediaPreviewContainer').innerHTML = '';
+            uploadedMedia = [];
+            selectedCondition = null;
+
+            alert('✅ 일기가 저장되었습니다!\n\nAI가 분석을 시작합니다...');
+        }
+
+        // 날짜/시간 기본값 설정
+        function setDefaultDateTime() {
+            const now = new Date();
+            const dateInput = document.getElementById('diaryDate');
+            const timeInput = document.getElementById('diaryTime');
+            if (dateInput) dateInput.value = now.toISOString().split('T')[0];
+            if (timeInput) timeInput.value = now.toTimeString().slice(0, 5);
+        }
+
+        // ========================================
+        // AI 케어 파트너 채팅 기능
+        // ========================================
+
+        // AI 채팅 시작 (빠른 기능 버튼)
+        function startAIChat(type) {
+            const messages = {
+                'record': '의무기록지 사진을 올려주시면 쉽게 설명해드릴게요. 📋\n\n어떤 검사 결과나 기록이 궁금하신가요?',
+                'emotion': '오늘 하루 어떠셨어요? 💚\n\n힘드시거나 걱정되는 일이 있으시면 편하게 말씀해주세요. 언제든 들을 준비가 되어 있어요.',
+                'welfare': '받을 수 있는 복지 혜택을 알려드릴게요! 🏛️\n\n현재 산정특례, 장애등록, 발달재활 바우처 등 다양한 지원을 받으실 수 있어요. 어떤 것이 궁금하신가요?',
+                'medicine': '복용 중인 약이 있으시면 알려주세요. 💊\n\n약물 정보, 부작용, 복용 시 주의사항을 쉽게 설명해드릴게요.'
+            };
+
+            addAIMessage(messages[type] || '무엇이 궁금하신가요?');
+        }
+
+        // 빠른 질문 전송
+        function sendQuickQuestion(question) {
+            addUserMessage(question);
+
+            // AI 응답 시뮬레이션
+            setTimeout(() => {
+                const responses = {
+                    '의무기록지에 있는 용어가 이해가 안 돼요': '이해해요! 의무기록지에는 어려운 의학 용어가 많죠. 😊\n\n📷 버튼을 눌러 기록지 사진을 올려주시면, 용어 하나하나 쉽게 풀어서 설명해드릴게요.\n\n예를 들어 "Hypsarrhythmia"는 "뇌파에서 나타나는 특수한 패턴"이라는 뜻이에요.',
+                    '오늘 많이 지치네요...': '많이 힘드셨군요... 💚\n\n환아를 돌보시느라 정말 고생이 많으세요. 부모님의 사랑과 노력이 아이에게 큰 힘이 된다는 것, 잊지 마세요.\n\n오늘 하루 어떤 일이 있으셨나요? 이야기해주시면 함께 나눌게요.',
+                    '산정특례 신청 방법 알려주세요': '산정특례 신청 방법 안내해드릴게요! 🏛️\n\n**필요 서류:**\n• 산정특례 등록 신청서\n• 진단서 (희귀질환 코드 포함)\n• 신분증 사본\n\n**신청 방법:**\n1. 담당의에게 진단서 발급 요청\n2. 국민건강보험공단 지사 방문 또는 온라인 신청\n3. 등록 완료 (2-3일 소요)\n\n도움이 더 필요하시면 말씀해주세요!'
+                };
+
+                addAIMessage(responses[question] || '좋은 질문이에요! 조금 더 자세히 알려주시면 더 정확한 답변을 드릴 수 있어요. 😊');
+            }, 1000);
+        }
+
+        // 채팅 메시지 전송
+        function sendChatMessage() {
+            const input = document.getElementById('chatInput');
+            const message = input.value.trim();
+
+            if (!message) return;
+
+            addUserMessage(message);
+            input.value = '';
+
+            // AI 응답 시뮬레이션
+            setTimeout(() => {
+                const aiResponses = [
+                    '좋은 질문이에요! 조금 더 자세히 알려주시면 더 정확한 답변을 드릴 수 있어요. 😊',
+                    '이해했어요. 관련 정보를 찾아볼게요! 잠시만 기다려주세요... 💜',
+                    '그 부분이 걱정되시는군요. 함께 해결책을 찾아볼게요! 💪'
+                ];
+                const randomResponse = aiResponses[Math.floor(Math.random() * aiResponses.length)];
+                addAIMessage(randomResponse);
+            }, 1500);
+        }
+
+        // 사용자 메시지 추가
+        function addUserMessage(text) {
+            const chatMessages = document.getElementById('chatMessages');
+            const now = new Date();
+            const timeStr = now.toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' });
+
+            const messageDiv = document.createElement('div');
+            messageDiv.className = 'flex gap-2 justify-end';
+            messageDiv.innerHTML = `
+                <div class="bg-primary-100 rounded-2xl rounded-tr-none p-3 max-w-[80%]">
+                    <p class="text-sm">${text}</p>
+                    <p class="text-xs text-neutral-400 mt-2 text-right">${timeStr}</p>
+                </div>
+            `;
+            chatMessages.appendChild(messageDiv);
+            chatMessages.scrollTop = chatMessages.scrollHeight;
+        }
+
+        // AI 메시지 추가
+        function addAIMessage(text) {
+            const chatMessages = document.getElementById('chatMessages');
+            const now = new Date();
+            const timeStr = now.toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' });
+
+            const messageDiv = document.createElement('div');
+            messageDiv.className = 'flex gap-2';
+            messageDiv.innerHTML = `
+                <div class="w-8 h-8 bg-primary-100 rounded-full flex items-center justify-center flex-shrink-0">
+                    <span>🤖</span>
+                </div>
+                <div class="bg-neutral-100 rounded-2xl rounded-tl-none p-3 max-w-[80%]">
+                    <p class="text-sm whitespace-pre-line">${text}</p>
+                    <p class="text-xs text-neutral-400 mt-2">${timeStr}</p>
+                </div>
+            `;
+            chatMessages.appendChild(messageDiv);
+            chatMessages.scrollTop = chatMessages.scrollHeight;
+        }
+
+        // ========================================
+        // 서류 자동화 기능
+        // ========================================
+
+        function generateDocument(type) {
+            const documents = {
+                '산정특례': {
+                    title: '산정특례 신청서',
+                    desc: '희귀질환 의료비 본인부담금 10%로 경감',
+                    items: ['진단서', '의무기록 사본', '주민등록등본']
+                },
+                '장애등록': {
+                    title: '장애등록 신청서',
+                    desc: '장애인 복지카드 발급 및 각종 혜택',
+                    items: ['장애진단서', '진료기록부', '검사결과지']
+                },
+                '발달재활': {
+                    title: '발달재활서비스 바우처',
+                    desc: '월 14~22만원 재활치료비 지원',
+                    items: ['소득확인서', '진단서', '주민등록등본']
+                },
+                '긴급복지': {
+                    title: '긴급복지 지원',
+                    desc: '위기 상황 생계/의료비 긴급 지원',
+                    items: ['신청서', '소득재산신고서', '통장사본']
+                }
+            };
+
+            const doc = documents[type];
+            if (doc) {
+                alert(
+                    `📄 ${doc.title} 생성\n\n` +
+                    `${doc.desc}\n\n` +
+                    `📋 필요 서류:\n${doc.items.map(i => '• ' + i).join('\n')}\n\n` +
+                    `✅ 신청서가 작성되었습니다!\n다운로드 폴더를 확인해주세요.`
+                );
+            }
+        }
+
+        // ========================================
+        // 캘린더 동기화 기능
+        // ========================================
+
+        function connectCalendar(type) {
+            const names = {
+                'apple': 'Apple Calendar',
+                'outlook': 'Outlook Calendar',
+                'google': 'Google Calendar'
+            };
+            alert(`📆 ${names[type]} 연결하기\n\n인증 화면으로 이동합니다...`);
+        }
+
+        function disconnectCalendar(type) {
+            if (confirm('정말 캘린더 연결을 해제하시겠습니까?')) {
+                alert('연결이 해제되었습니다.');
+            }
+        }
+
+        function syncCalendarNow() {
+            alert('🔄 동기화 중...\n\n✅ 동기화가 완료되었습니다!\n3개의 일정이 업데이트되었어요.');
+        }
+
+        // ========================================
+        // 설정 기능
+        // ========================================
+
+        function confirmDeleteAccount() {
+            if (confirm('⚠️ 정말 회원 탈퇴하시겠습니까?\n\n모든 데이터가 삭제되며 복구할 수 없습니다.')) {
+                alert('회원 탈퇴가 완료되었습니다.\n이용해주셔서 감사합니다.');
+                logout();
+            }
+        }
+
+        // 초기화
+        document.addEventListener('DOMContentLoaded', () => {
+            showTab('home');
+            loadSavedChildInfo();
+            setDefaultDateTime();
+            renderCalendar(); // 캘린더 초기화
+        });
+    </script>
+</body>
+
+</html>

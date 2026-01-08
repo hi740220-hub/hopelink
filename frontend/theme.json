@@ -1,0 +1,233 @@
+{
+  "name": "HopeLink Theme",
+  "version": "1.0.0",
+  "description": "희귀질환 환아 케어 앱을 위한 파스텔 톤 테마",
+  
+  "colors": {
+    "primary": {
+      "default": "#FFB5BA",
+      "50": "#FFF5F6",
+      "100": "#FFE8EA",
+      "200": "#FFD4D8",
+      "300": "#FFB5BA",
+      "400": "#FF9AA1",
+      "500": "#FF7A84",
+      "600": "#E85A65"
+    },
+    "secondary": {
+      "default": "#E8D5E8",
+      "50": "#FAF5FA",
+      "100": "#F3E8F3",
+      "200": "#E8D5E8",
+      "300": "#D8BDD8",
+      "400": "#C9A5C9"
+    },
+    "accent": {
+      "default": "#B8E8D4",
+      "50": "#F0FBF7",
+      "100": "#D9F5EB",
+      "200": "#B8E8D4",
+      "300": "#8DD9BC",
+      "400": "#62CAA4"
+    },
+    "background": {
+      "cream": "#FFF9F0",
+      "white": "#FFFFFF"
+    },
+    "semantic": {
+      "warning": "#FFD93D",
+      "warningLight": "#FFF3CD",
+      "danger": "#FF6B6B",
+      "dangerLight": "#FFE5E5",
+      "success": "#4CAF50",
+      "successLight": "#E8F5E9"
+    },
+    "neutral": {
+      "50": "#FAFAFA",
+      "100": "#F5F5F5",
+      "200": "#EEEEEE",
+      "300": "#E0E0E0",
+      "400": "#BDBDBD",
+      "500": "#9E9E9E",
+      "600": "#757575",
+      "700": "#616161",
+      "800": "#424242",
+      "900": "#212121"
+    }
+  },
+  
+  "typography": {
+    "fontFamily": {
+      "primary": "Pretendard",
+      "fallback": ["Noto Sans KR", "sans-serif"]
+    },
+    "fontSize": {
+      "xs": 12,
+      "sm": 14,
+      "base": 16,
+      "lg": 18,
+      "xl": 20,
+      "2xl": 24,
+      "3xl": 30
+    },
+    "fontWeight": {
+      "light": 300,
+      "regular": 400,
+      "medium": 500,
+      "semibold": 600,
+      "bold": 700
+    },
+    "lineHeight": {
+      "tight": 1.25,
+      "normal": 1.5,
+      "relaxed": 1.75
+    }
+  },
+  
+  "spacing": {
+    "unit": 4,
+    "scale": {
+      "0": 0,
+      "1": 4,
+      "2": 8,
+      "3": 12,
+      "4": 16,
+      "5": 20,
+      "6": 24,
+      "8": 32,
+      "10": 40,
+      "12": 48
+    }
+  },
+  
+  "borderRadius": {
+    "sm": 4,
+    "md": 8,
+    "lg": 12,
+    "xl": 16,
+    "2xl": 24,
+    "3xl": 32,
+    "full": 9999
+  },
+  
+  "shadows": {
+    "soft": {
+      "x": 0,
+      "y": 2,
+      "blur": 8,
+      "color": "rgba(255, 181, 186, 0.15)"
+    },
+    "card": {
+      "x": 0,
+      "y": 4,
+      "blur": 20,
+      "color": "rgba(0, 0, 0, 0.05)"
+    },
+    "cardHover": {
+      "x": 0,
+      "y": 8,
+      "blur": 30,
+      "color": "rgba(255, 181, 186, 0.25)"
+    },
+    "floating": {
+      "x": 0,
+      "y": 10,
+      "blur": 40,
+      "color": "rgba(255, 122, 132, 0.3)"
+    }
+  },
+  
+  "components": {
+    "button": {
+      "primary": {
+        "backgroundColor": "#FFB5BA",
+        "textColor": "#FFFFFF",
+        "borderRadius": 16,
+        "paddingHorizontal": 20,
+        "paddingVertical": 12,
+        "fontSize": 16,
+        "fontWeight": 600
+      },
+      "secondary": {
+        "backgroundColor": "#FFFFFF",
+        "textColor": "#FF7A84",
+        "borderRadius": 16,
+        "borderColor": "#FFD4D8",
+        "borderWidth": 1
+      },
+      "floating": {
+        "size": 56,
+        "backgroundColor": "#FF7A84",
+        "iconColor": "#FFFFFF",
+        "borderRadius": 28,
+        "shadow": "floating"
+      }
+    },
+    "card": {
+      "backgroundColor": "#FFFFFF",
+      "borderRadius": 24,
+      "padding": 20,
+      "shadow": "card"
+    },
+    "badge": {
+      "warning": {
+        "backgroundColor": "#FFF3CD",
+        "textColor": "#CC9A00",
+        "borderRadius": 8,
+        "paddingHorizontal": 8,
+        "paddingVertical": 4,
+        "fontSize": 12
+      },
+      "success": {
+        "backgroundColor": "#E8F5E9",
+        "textColor": "#2E7D32",
+        "borderRadius": 8
+      },
+      "danger": {
+        "backgroundColor": "#FFE5E5",
+        "textColor": "#CC3333",
+        "borderRadius": 8
+      },
+      "info": {
+        "backgroundColor": "#F3E8F3",
+        "textColor": "#9E4D9E",
+        "borderRadius": 8
+      }
+    },
+    "input": {
+      "backgroundColor": "#FFFFFF",
+      "borderColor": "#E0E0E0",
+      "focusBorderColor": "#FFB5BA",
+      "borderRadius": 12,
+      "paddingHorizontal": 16,
+      "paddingVertical": 12,
+      "fontSize": 16
+    },
+    "navigation": {
+      "backgroundColor": "#FFFFFF",
+      "activeColor": "#FF7A84",
+      "inactiveColor": "#9E9E9E",
+      "iconSize": 24,
+      "labelSize": 10
+    }
+  },
+  
+  "flutterFlowMapping": {
+    "primaryColor": "#FFB5BA",
+    "secondaryColor": "#E8D5E8",
+    "tertiaryColor": "#B8E8D4",
+    "alternate": "#FFF9F0",
+    "primaryText": "#212121",
+    "secondaryText": "#757575",
+    "primaryBackground": "#FFF9F0",
+    "secondaryBackground": "#FFFFFF",
+    "accent1": "#FF7A84",
+    "accent2": "#D8BDD8",
+    "accent3": "#8DD9BC",
+    "accent4": "#FFD93D",
+    "success": "#4CAF50",
+    "warning": "#FFD93D",
+    "error": "#FF6B6B",
+    "info": "#9E4D9E"
+  }
+}

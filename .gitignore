@@ -1,0 +1,29 @@
+# 환경 변수 (민감 정보)
+.env
+*.env
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+.Python
+venv/
+.venv/
+pip-log.txt
+
+# Google Calendar 토큰 (민감 정보)
+token.pickle
+credentials.json
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
