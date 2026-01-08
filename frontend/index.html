@@ -210,12 +210,16 @@
 
             </div>
 
-            <!-- 테스트 힌트 -->
+            <!-- 테스트 힌트 + 데모 모드 버튼 -->
             <div class="mt-6 p-4 bg-accent-50 rounded-xl border border-accent-200">
-                <p class="text-sm text-neutral-600 text-center">
+                <p class="text-sm text-neutral-600 text-center mb-3">
                     💡 <span class="font-medium">테스트 모드</span>: 아무 이메일이나 입력하세요!<br>
                     인증 코드는 화면에 자동으로 표시됩니다.
                 </p>
+                <button onclick="enterDemoMode()"
+                    class="w-full py-3 bg-gradient-to-r from-secondary-400 to-primary-400 text-white rounded-xl font-semibold text-sm transition hover:opacity-90 shadow-lg">
+                    🎀 데모 모드로 체험하기 (로그인 없이)
+                </button>
             </div>
         </div>
     </div>
@@ -2112,6 +2116,47 @@
             document.getElementById('login-screen').classList.add('hidden');
             document.getElementById('app').classList.remove('hidden');
             showTab('home');
+        }
+
+        // ========================================
+        // 데모 모드 (로그인 없이 체험)
+        // ========================================
+        function enterDemoMode() {
+            // 데모 사용자 설정
+            currentUser = {
+                id: 'demo-user',
+                email: 'demo@hopelink.kr',
+                name: '데모 사용자'
+            };
+
+            // 데모 환아 정보 설정
+            localStorage.setItem('hopelink_child', JSON.stringify({
+                name: '희망이',
+                birthDate: '2024-06-15',
+                diagnosis: '영아연축 (웨스트증후군)',
+                residence: '서울시 강남구',
+                age: '만 19개월'
+            }));
+
+            // 데모 약물 정보 설정
+            localStorage.setItem('hopelink_medicines', JSON.stringify([
+                { id: 1, name: '비가바트린', frequency: 2, taken: 1 },
+                { id: 2, name: 'ACTH 주사', frequency: 1, taken: 0 }
+            ]));
+
+            // 화면 전환
+            document.getElementById('login-screen').classList.add('hidden');
+            document.getElementById('app').classList.remove('hidden');
+            showTab('home');
+
+            // 환아 정보 UI 업데이트
+            document.getElementById('ageDisplay').textContent = '📅 만 19개월';
+            document.getElementById('childNameDisplay').textContent = '희망이의 오늘';
+
+            // 알림
+            setTimeout(() => {
+                alert('🎀 데모 모드로 접속했습니다!\n\n모든 기능을 자유롭게 체험해보세요.\n(데이터는 이 기기에만 저장됩니다)');
+            }, 500);
         }
 
         // 로그아웃
